@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratorio de Geotecnia | Universidad Nacional de Colombia</title>
+  <meta name="description" content="Plataforma de seguimiento y control de proyectos de Extensión e Investigación del Laboratorio de Geotecnia - Universidad Nacional de Colombia.">
+  <meta name="author" content="Universidad Nacional de Colombia - Laboratorio de Geotecnia">
+
+  <!-- Favicon UNAL -->
+  <link rel="icon" href="./Diseño/logo_unal_circle.png" type="image/png">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Ancizar Sans"', 'Inter', '-apple-system', 'sans-serif'],
+            heading: ['"Ancizar Sans"', 'Outfit', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            unal: {
+              50: '#f4f8eb',
+              100: '#e5f0d3',
+              200: '#cfe3ad',
+              300: '#b2d37f',
+              400: '#94b43b', // Verde Institucional Principal
+              500: '#759427',
+              600: '#5a751c',
+              700: '#004f2d', // Verde Oscuro Tradicional
+              800: '#00361f', // Verde Franja Header
+              900: '#002414',
+              gray: '#5C666A',
+              red: '#C4261D'  // Rojo Alterno UNAL
+            },
+            geo: {
+              soil: '#B45309',
+              sand: '#D97706',
+              stone: '#475569'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- SheetJS (Excel .xlsx Export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- html2pdf.js (Institutional PDF Export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="./src/css/styles.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased flex flex-col selection:bg-unal-400 selection:text-unal-900">
+
+  <!-- UNAL Top Institutional Bar -->
+  <div class="unal-top-bar text-[11px] font-medium py-1.5 px-4 sm:px-8 no-print">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- Sedes UNAL -->
+      <div class="hidden lg:flex items-center space-x-3 text-slate-200">
+        <span class="text-unal-400 font-bold">Sedes:</span>
+        <a href="https://bogota.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Bogotá</a>
+        <span>•</span>
+        <a href="https://medellin.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Medellín</a>
+        <span>•</span>
+        <a href="https://manizales.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Manizales</a>
+        <span>•</span>
+        <a href="https://palmira.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Palmira</a>
+        <span>•</span>
+        <a href="https://imani.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Amazonia</a>
+        <span>•</span>
+        <a href="https://caribe.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Caribe</a>
+        <span>•</span>
+        <a href="https://orinoquia.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Orinoquia</a>
+        <span>•</span>
+        <a href="https://tumaco-pacifico.unal.edu.co" target="_blank" class="hover:text-white transition-colors">Tumaco</a>
+      </div>
+
+      <!-- Quick Institutional Services -->
+      <div class="flex items-center space-x-4 ml-auto text-slate-200">
+        <a href="https://correo.unal.edu.co" target="_blank" class="hover:text-unal-400 flex items-center space-x-1 transition-colors">
+          <i data-lucide="mail" class="w-3 h-3 text-unal-400"></i>
+          <span>Correo institucional</span>
+        </a>
+        <a href="https://sia.unal.edu.co" target="_blank" class="hover:text-unal-400 flex items-center space-x-1 transition-colors">
+          <i data-lucide="graduation-cap" class="w-3 h-3 text-unal-400"></i>
+          <span>SIA</span>
+        </a>
+        <a href="https://bibliotecas.unal.edu.co" target="_blank" class="hover:text-unal-400 flex items-center space-x-1 transition-colors">
+          <i data-lucide="book-open" class="w-3 h-3 text-unal-400"></i>
+          <span>Bibliotecas</span>
+        </a>
+        <a href="https://identidad.unal.edu.co" target="_blank" class="text-unal-400 font-bold hover:underline">
+          #SomosUNAL
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header id="navbar-container" class="sticky top-0 z-40"></header>
+
+  <!-- Main View Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div id="main-view-container"></div>
+  </main>
+
+  <!-- Modal Host -->
+  <div id="quick-log-modal-container"></div>
+
+  <!-- Official UNAL Footer -->
+  <footer class="bg-unal-800 text-slate-300 text-xs border-t-4 border-unal-400 py-10 mt-12 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      
+      <!-- Top Footer: Logos and Hierarchy -->
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-unal-700/60">
+        <div class="flex items-center space-x-4">
+          <img src="./Diseño/Escudo_color.png" alt="Escudo Universidad Nacional de Colombia" class="h-16 w-auto object-contain">
+          <div>
+            <h4 class="font-bold font-heading text-white text-base tracking-wide">UNIVERSIDAD NACIONAL DE COLOMBIA</h4>
+            <p class="text-unal-400 font-medium text-xs">Sede Bogotá • Facultad de Ingeniería</p>
+            <p class="text-slate-400 text-xs">Departamento de Ingeniería Civil y Agrícola • Laboratorio de Geotecnia</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <img src="./Diseño/un.png" alt="Logotipo UN" class="h-12 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity">
+          <img src="./Diseño/logo_unal_circle.png" alt="Marca UNAL" class="h-12 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity">
+        </div>
+      </div>
+
+      <!-- Mid Footer: Contact & Useful Links -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-300">
+        <div class="space-y-2">
+          <h5 class="font-bold text-white uppercase text-[11px] tracking-wider text-unal-400">Contacto del Laboratorio</h5>
+          <p>📍 Carrera 45 # 26-85, Edificio 407 (Facultad de Ingeniería)</p>
+          <p>Ciudad Universitaria, Bogotá D.C., Colombia</p>
+          <p>✉️ <a href="mailto:labgeotec_fibog@unal.edu.co" class="text-unal-400 hover:underline">labgeotec_fibog@unal.edu.co</a></p>
+        </div>
+
+        <div class="space-y-2">
+          <h5 class="font-bold text-white uppercase text-[11px] tracking-wider text-unal-400">Servicios Geotécnicos</h5>
+          <ul class="space-y-1 text-slate-300">
+            <li>• Ensayos de Mecánica de Suelos y Rocas (ASTM / NTC)</li>
+            <li>• Proyectos de Extensión y Consultoría Especializada</li>
+            <li>• Investigación Científica y Ensayos Dinámicos Avanzados</li>
+            <li>• Tesis de Pregrado y Posgrado (Maestría y Doctorado)</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h5 class="font-bold text-white uppercase text-[11px] tracking-wider text-unal-400">Enlaces de Interés UNAL</h5>
+          <div class="grid grid-cols-2 gap-1 text-slate-300">
+            <a href="https://legal.unal.edu.co" target="_blank" class="hover:text-unal-400">Régimen Legal</a>
+            <a href="https://ingenieria.bogota.unal.edu.co" target="_blank" class="hover:text-unal-400">Facultad de Ingeniería</a>
+            <a href="https://personal.unal.edu.co" target="_blank" class="hover:text-unal-400">Talento Humano</a>
+            <a href="https://transparencia.unal.edu.co" target="_blank" class="hover:text-unal-400">Transparencia</a>
+            <a href="https://quejasyreclamos.unal.edu.co" target="_blank" class="hover:text-unal-400">Quejas y Reclamos</a>
+            <a href="https://identidad.unal.edu.co" target="_blank" class="hover:text-unal-400">Identidad Visual</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Footer: Copyright -->
+      <div class="pt-6 border-t border-unal-700/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+        <p>© Copyright 2026 - Universidad Nacional de Colombia. Todos los derechos reservados.</p>
+        <p class="text-unal-400 font-semibold">Tipografía Oficial: Ancízar Sans • Sistema de Información Geotécnica</p>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Application Scripts (Loaded in dependency order) -->
+  <script src="./src/js/data/initialData.js"></script>
+  <script src="./src/js/utils/calculations.js"></script>
+  <script src="./src/js/services/storageService.js"></script>
+  <script src="./src/js/services/driveService.js"></script>
+  <script src="./src/js/services/reportService.js"></script>
+  
+  <!-- UI Components -->
+  <script src="./src/js/components/Navbar.js"></script>
+  <script src="./src/js/components/QuickLogModal.js"></script>
+  <script src="./src/js/components/DashboardView.js"></script>
+  <script src="./src/js/components/ProjectsView.js"></script>
+  <script src="./src/js/components/ApprovalsView.js"></script>
+  <script src="./src/js/components/WeeklyReportView.js"></script>
+  <script src="./src/js/components/TeamView.js"></script>
+  <script src="./src/js/components/DriveSettingsModal.js"></script>
+  <script src="./src/js/components/ProjectTasksModal.js"></script>
+  
+  <!-- App Controller -->
+  <script src="./src/js/app.js"></script>
+</body>
+</html>
