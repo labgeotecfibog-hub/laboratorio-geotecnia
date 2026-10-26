@@ -52,6 +52,71 @@ window.GeoUtils = {
   },
 
   /**
+   * Determina si una tarea/actividad específica está atrasada
+   * (Fecha límite pasada y progreso menor al 100%)
+   */
+  isTaskOverdue(task, projectDeadline) {
+    if (!task) return false;
+    const progress = Math.min(100, Math.max(0, Number(task.progress) || 0));
+    if (progress >= 100 || task.status === 'Completada') return false;
+
+    const deadlineStr = task.deadline || projectDeadline;
+    if (!deadlineStr) return false;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const deadline = new Date(deadlineStr + (deadlineStr.includes('T') ? '' : 'T00:00:00'));
+    deadline.setHours(0, 0, 0, 0);
+
+    return deadline < now;
+  },
+
+  /**
+   * Calcula los días de retraso de una tarea vencida
+   */
+  getTaskDelayDays(task, projectDeadline) {
+    if (!this.isTaskOverdue(task, projectDeadline)) return 0;
+    const deadlineStr = task.deadline || projectDeadline;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const deadline = new Date(deadlineStr + (deadlineStr.includes('T') ? '' : 'T00:00:00'));
+    deadline.setHours(0, 0, 0, 0);
+
+    const diffMs = now.getTime() - deadline.getTime();
+    return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  },
+
+  /**
+   * Obtiene la lista de tareas atrasadas dentro de un proyecto
+   */
+  getProjectOverdueTasks(project) {
+    if (!project || !project.activities || !Array.isArray(project.activities)) return [];
+    return project.activities.filter(act => this.isTaskOverdue(act, project.deadline));
+  },
+
+  /**
+   * Obtiene todas las tareas atrasadas de todos los proyectos activos
+   */
+  getAllOverdueTasks(projects) {
+    if (!projects || !Array.isArray(projects)) return [];
+    const overdueList = [];
+    projects.forEach(project => {
+      if (project.status !== 'Finalizado' && project.activities) {
+        project.activities.forEach(act => {
+          if (this.isTaskOverdue(act, project.deadline)) {
+            overdueList.push({
+              project,
+              activity: act,
+              delayDays: this.getTaskDelayDays(act, project.deadline)
+            });
+          }
+        });
+      }
+    });
+    return overdueList.sort((a, b) => b.delayDays - a.delayDays);
+  },
+
+  /**
    * Obtiene el número de semana ISO del año
    */
   getISOWeekNumber(d = new Date()) {

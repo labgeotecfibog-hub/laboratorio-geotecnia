@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Componente Modal: Configuración de Google Drive y Copias de Seguridad
  * Identidad Visual: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
@@ -163,7 +163,7 @@ window.GeoComponents.renderDriveSettingsModal = function(isOpen, onClose) {
 
               <div>
                 <span class="text-slate-400 block font-bold uppercase text-[10px]">Con Copia (Coordinadores):</span>
-                <p class="font-mono text-slate-700 text-[11px]">dfrodriguezr@unal.edu.co</p>
+                <p class="font-mono text-slate-700 text-[11px]">dafrodriguezram@unal.edu.co</p>
                 <p class="font-mono text-slate-700 text-[11px]">eaprietos@unal.edu.co</p>
               </div>
             </div>

@@ -1,13 +1,14 @@
-﻿/**
+/**
  * Componente: Vista de Gestión de Proyectos
  * Identidad Visual: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
 
 window.GeoComponents = window.GeoComponents || {};
 
-window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
+window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, onOpenLogin) {
   let filterType = 'all';
   let searchTerm = '';
+  const isReviewer = window.GeoAuth ? window.GeoAuth.isReviewer() : false;
 
   const members = window.GeoStorage.getMembers();
 
@@ -93,6 +94,12 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
                             <span>Drive: ${p.driveFolderName.substring(0, 20)}...</span>
                           </a>
                         ` : ''}
+                        ${(window.GeoUtils && window.GeoUtils.getProjectOverdueTasks(p).length > 0) ? `
+                          <span class="inline-flex items-center space-x-1 text-xs font-bold px-2.5 py-0.5 bg-rose-100 text-rose-800 rounded-md border border-rose-300 animate-pulse" title="Este proyecto contiene actividades que superaron la fecha límite">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i>
+                            <span>${window.GeoUtils.getProjectOverdueTasks(p).length} tarea${window.GeoUtils.getProjectOverdueTasks(p).length > 1 ? 's' : ''} atrasada${window.GeoUtils.getProjectOverdueTasks(p).length > 1 ? 's' : ''}</span>
+                          </span>
+                        ` : ''}
                       </div>
 
                       <h3 class="text-lg sm:text-xl font-bold font-heading text-slate-900 leading-snug">${p.name}</h3>
@@ -160,25 +167,60 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
                   <div class="divide-y divide-slate-200 rounded-xl bg-white border border-slate-200 overflow-hidden text-xs">
                     ${(p.activities || []).map((act, index) => {
                       const assignedMembers = members.filter(m => (act.assignedTo || []).includes(m.id));
-                      const isComplete = act.progress >= 100;
+                      const isComplete = act.progress >= 100 || act.status === 'Completada' || act.status === 'Hecho';
+                      const isOverdue = window.GeoUtils && window.GeoUtils.isTaskOverdue(act, p.deadline);
+                      const delayDays = isOverdue ? window.GeoUtils.getTaskDelayDays(act, p.deadline) : 0;
+
+                      let statusBadgeClass = 'bg-slate-100 text-slate-700';
+                      let statusIconText = act.status || 'En Ejecución';
+
+                      if (isComplete) {
+                        statusBadgeClass = 'bg-emerald-100 text-emerald-800 border border-emerald-300';
+                        statusIconText = '✓ Hecho';
+                      } else if (act.status === 'Calculado') {
+                        statusBadgeClass = 'bg-red-100 text-red-800 border border-red-300 font-bold';
+                        statusIconText = 'Calculado';
+                      } else if (act.status === 'Revisado') {
+                        statusBadgeClass = 'bg-slate-900 text-white border border-slate-700 font-bold';
+                        statusIconText = '• Revisado';
+                      } else if (act.status === 'En Ejecución') {
+                        statusBadgeClass = 'bg-blue-100 text-blue-800 border border-blue-200';
+                        statusIconText = 'En Ejecución';
+                      } else if (act.status === 'Pendiente') {
+                        statusBadgeClass = 'bg-amber-100 text-amber-800 border border-amber-200';
+                        statusIconText = 'Pendiente';
+                      }
 
                       return `
-                        <div class="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                        <div class="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isOverdue ? 'bg-rose-50/50 border-l-4 border-l-rose-500' : 'hover:bg-slate-50'} transition-colors">
                           <div class="space-y-1 flex-1">
-                            <div class="flex items-center space-x-2">
+                            <div class="flex flex-wrap items-center gap-2">
                               <span class="font-bold text-slate-800">${index + 1}. ${act.name}</span>
-                              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isComplete ? 'bg-unal-100 text-unal-800' : 'bg-slate-100 text-slate-700'}">
-                                ${act.status || 'En Ejecución'}
+                              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${statusBadgeClass}">
+                                ${statusIconText}
                               </span>
+                              ${isOverdue ? `
+                                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 flex items-center space-x-1 animate-pulse shadow-2xs" title="Esta tarea debió finalizarse el ${window.GeoUtils.formatDateCO(act.deadline || p.deadline)}">
+                                  <i data-lucide="alert-triangle" class="w-3 h-3 text-rose-600"></i>
+                                  <span>⚠️ Atrasada (+${delayDays}d)</span>
+                                </span>
+                              ` : ''}
                             </div>
                             <p class="text-[11px] text-slate-500"><strong>Entregable:</strong> ${act.deliverables || 'N/A'}</p>
                             
-                            <div class="flex items-center space-x-2 pt-0.5">
-                              <span class="text-slate-400">Asignado a:</span>
-                              <div class="flex -space-x-1.5 overflow-hidden">
-                                ${assignedMembers.map(m => window.GeoUtils.renderMemberAvatar(m, 'sm')).join('')}
+                            <div class="flex flex-wrap items-center gap-4 text-[11px] pt-0.5">
+                              <div class="flex items-center space-x-2">
+                                <span class="text-slate-400">Asignado a:</span>
+                                <div class="flex -space-x-1.5 overflow-hidden">
+                                  ${assignedMembers.map(m => window.GeoUtils.renderMemberAvatar(m, 'sm')).join('')}
+                                </div>
+                                <span class="text-slate-600 font-medium" title="${assignedMembers.map(m => m.name).join(' • ')}">${assignedMembers.map(m => m.initials ? `${m.name.split(' ')[0]} (${m.initials})` : m.name.split(' ')[0]).join(', ') || 'Sin asignar'}</span>
                               </div>
-                              <span class="text-slate-600 font-medium">${assignedMembers.map(m => m.name.split(' ')[0]).join(', ') || 'Sin asignar'}</span>
+
+                              <div class="${isOverdue ? 'text-rose-700 font-bold' : 'text-slate-500'}">
+                                <strong>Límite:</strong> ${window.GeoUtils.formatDateCO(act.deadline || p.deadline)}
+                                ${isOverdue ? `<span class="text-rose-600 font-bold ml-1">(Venció hace ${delayDays} día${delayDays > 1 ? 's' : ''})</span>` : ''}
+                              </div>
                             </div>
                           </div>
 
@@ -191,10 +233,10 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
                             <div class="w-32">
                               <div class="flex justify-between text-[11px] font-bold mb-1">
                                 <span class="text-slate-500">Avance</span>
-                                <span class="text-unal-800 font-mono">${act.progress}%</span>
+                                <span class="${isOverdue ? 'text-rose-700 font-black' : 'text-unal-800 font-mono'}">${act.progress}%</span>
                               </div>
                               <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                <div class="bg-unal-400 h-2 rounded-full transition-all" style="width: ${act.progress}%"></div>
+                                <div class="${isOverdue ? 'bg-rose-500' : 'bg-unal-400'} h-2 rounded-full transition-all" style="width: ${act.progress}%"></div>
                               </div>
                             </div>
                           </div>
@@ -235,6 +277,10 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
 
     container.querySelectorAll('[data-config-tasks-project]').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isReviewer) {
+          if (onOpenLogin) onOpenLogin('La configuración técnica de tareas WBS y pesos porcentuales está reservada para los Revisores y Coordinadores.');
+          return;
+        }
         const projId = btn.getAttribute('data-config-tasks-project');
         const project = window.GeoStorage.getProjectById(projId);
         if (project && window.GeoComponents.renderProjectTasksModal) {
@@ -250,6 +296,10 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
 
     container.querySelectorAll('[data-edit-project]').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isReviewer) {
+          if (onOpenLogin) onOpenLogin('La edición de información general del proyecto está reservada para la Dirección y Coordinación.');
+          return;
+        }
         const projId = btn.getAttribute('data-edit-project');
         const project = window.GeoStorage.getProjectById(projId);
         if (project) {
@@ -260,6 +310,10 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
 
     container.querySelectorAll('[data-delete-project]').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!isReviewer) {
+          if (onOpenLogin) onOpenLogin('La eliminación de proyectos está reservada para la Dirección y Coordinación.');
+          return;
+        }
         const projId = btn.getAttribute('data-delete-project');
         const project = window.GeoStorage.getProjectById(projId);
         if (project) {
@@ -273,6 +327,10 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog) {
     });
 
     container.querySelector('#btn-create-project').addEventListener('click', () => {
+      if (!isReviewer) {
+        if (onOpenLogin) onOpenLogin('La creación de nuevos proyectos de extensión o investigación está reservada para la Dirección y Coordinación.');
+        return;
+      }
       openCreateProjectModal();
     });
 

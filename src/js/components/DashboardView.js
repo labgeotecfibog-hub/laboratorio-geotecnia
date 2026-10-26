@@ -1,14 +1,21 @@
-﻿/**
+/**
  * Componente: Vista Principal del Tablero (Dashboard)
  * Identidad Visual: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
 
 window.GeoComponents = window.GeoComponents || {};
 
-window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpenQuickLog) {
+window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpenQuickLog, onOpenLogin) {
+  const isReviewer = window.GeoAuth ? window.GeoAuth.isReviewer() : false;
   const projects = window.GeoStorage.getProjects();
   const logs = window.GeoStorage.getLogs();
   const members = window.GeoStorage.getMembers();
+  const recurringTasks = window.GeoStorage.getRecurringTasks ? window.GeoStorage.getRecurringTasks() : [];
+  const labPractices = window.GeoStorage.getLabPractices ? window.GeoStorage.getLabPractices() : [];
+  const overdueTasks = window.GeoUtils ? window.GeoUtils.getAllOverdueTasks(projects) : [];
+
+  const recurringCompleted = recurringTasks.filter(t => t.status === 'Cumplida').length;
+  const recurringTotal = recurringTasks.length;
 
   const extensionProjects = projects.filter(p => p.type === 'Extensión');
   const researchProjects = projects.filter(p => p.type === 'Investigación');
@@ -42,7 +49,7 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
             </h1>
             
             <p class="text-sm sm:text-base text-slate-200 font-normal leading-relaxed">
-              Plataforma institucional de control y seguimiento a proyectos de <strong>Extensión Técnica</strong> (servicios a entidades y concesiones) e <strong>Investigación Científica</strong>. Monitoreo de ensayos con normas ASTM/NTC, avance porcentual automático y evidencias centralizadas en Google Drive.
+              Plataforma institucional de control y seguimiento a proyectos de <strong>Extensión Técnica</strong> e <strong>Investigación Científica</strong>, programación de <strong>Prácticas de Docencia</strong> y rutinas de <strong>Aseo y Orden 5S</strong>.
             </p>
             
             <div class="pt-2 flex flex-wrap items-center gap-3">
@@ -54,6 +61,16 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
               <button id="hero-report-btn" class="px-4 py-2.5 rounded-xl bg-unal-800/90 hover:bg-unal-700/90 text-white font-semibold text-sm border border-unal-400/40 transition-all flex items-center space-x-2">
                 <i data-lucide="file-spreadsheet" class="w-4 h-4 text-unal-400"></i>
                 <span>Generar Informe Semanal</span>
+              </button>
+
+              <button id="hero-routines-btn" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition-all flex items-center space-x-2">
+                <i data-lucide="repeat" class="w-4 h-4 text-unal-300"></i>
+                <span>Rutinas y Aseo (${recurringCompleted}/${recurringTotal})</span>
+              </button>
+
+              <button id="hero-practices-btn" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition-all flex items-center space-x-2">
+                <i data-lucide="graduation-cap" class="w-4 h-4 text-unal-300"></i>
+                <span>Prácticas (${labPractices.length})</span>
               </button>
             </div>
           </div>
@@ -69,6 +86,33 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
         <!-- Decorative Background Glow -->
         <div class="absolute -right-12 -bottom-12 w-72 h-72 bg-unal-400/20 rounded-full blur-3xl pointer-events-none"></div>
       </div>
+
+      <!-- Alerta Destacada: Indicador de Tareas Atrasadas -->
+      ${overdueTasks.length > 0 ? `
+        <div class="bg-rose-50 border-2 border-rose-300 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center space-x-3.5">
+            <div class="w-11 h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0 animate-pulse">
+              <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-rose-200 text-rose-900 border border-rose-300">Alerta de Cronograma</span>
+                <span class="text-xs font-bold text-rose-700">Atención Inmediata</span>
+              </div>
+              <h3 class="text-sm sm:text-base font-extrabold text-rose-900 font-heading">
+                ${overdueTasks.length} actividad${overdueTasks.length > 1 ? 'es' : ''} técnica${overdueTasks.length > 1 ? 's' : ''} con fecha límite vencida
+              </h3>
+              <p class="text-xs text-rose-700">
+                Se detectaron tareas con retraso en los proyectos: <strong>${Array.from(new Set(overdueTasks.map(o => o.project.code))).join(', ')}</strong>.
+              </p>
+            </div>
+          </div>
+          <button id="btn-view-overdue-tasks" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5 shrink-0">
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            <span>Ver Tareas Atrasadas</span>
+          </button>
+        </div>
+      ` : ''}
 
       <!-- KPI Metrics Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -129,8 +173,8 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
             </div>
           </div>
           <div class="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
-            <span>Clic para validar anexos</span>
-            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
+            <span>${isReviewer ? 'Clic para validar anexos' : '🔒 Exclusivo Dirección y Coordinación'}</span>
+            <i data-lucide="${isReviewer ? 'chevron-right' : 'lock'}" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
           </div>
         </div>
 
@@ -268,8 +312,28 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
 
   container.querySelector('#hero-quick-log-btn').addEventListener('click', onOpenQuickLog);
   container.querySelector('#hero-report-btn').addEventListener('click', () => onNavigate('weekly-report'));
+  
+  const heroRoutinesBtn = container.querySelector('#hero-routines-btn');
+  if (heroRoutinesBtn) heroRoutinesBtn.addEventListener('click', () => onNavigate('recurring-tasks'));
+
+  const heroPracticesBtn = container.querySelector('#hero-practices-btn');
+  if (heroPracticesBtn) heroPracticesBtn.addEventListener('click', () => onNavigate('practices'));
+
+  const btnViewOverdue = container.querySelector('#btn-view-overdue-tasks');
+  if (btnViewOverdue) btnViewOverdue.addEventListener('click', () => onNavigate('projects'));
+
   container.querySelector('#view-all-projects-btn').addEventListener('click', () => onNavigate('projects'));
-  container.querySelector('#kpi-approvals-card').addEventListener('click', () => onNavigate('approvals'));
+  container.querySelector('#kpi-approvals-card').addEventListener('click', () => {
+    if (isReviewer) {
+      onNavigate('approvals');
+    } else {
+      if (onOpenLogin) {
+        onOpenLogin('El apartado de Revisión y Aprobación de Avances está reservado para la Dirección y Coordinación. Inicia sesión con tus credenciales de revisor.');
+      } else {
+        onNavigate('approvals');
+      }
+    }
+  });
 
   if (window.lucide) window.lucide.createIcons();
 };

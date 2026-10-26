@@ -66,7 +66,7 @@
 
   <!-- UNAL Top Institutional Bar -->
   <div class="unal-top-bar text-[11px] font-medium py-1.5 px-4 sm:px-8 no-print">
-    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+    <div class="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-2">
       <!-- Sedes UNAL -->
       <div class="hidden lg:flex items-center space-x-3 text-slate-200">
         <span class="text-unal-400 font-bold">Sedes:</span>
@@ -118,6 +118,7 @@
 
   <!-- Modal Host -->
   <div id="quick-log-modal-container"></div>
+  <div id="login-modal-container"></div>
 
   <!-- Official UNAL Footer -->
   <footer class="bg-unal-800 text-slate-300 text-xs border-t-4 border-unal-400 py-10 mt-12 no-print">
@@ -184,15 +185,19 @@
   <!-- Application Scripts (Loaded in dependency order) -->
   <script src="./src/js/data/initialData.js"></script>
   <script src="./src/js/utils/calculations.js"></script>
+  <script src="./src/js/services/authService.js"></script>
   <script src="./src/js/services/storageService.js"></script>
   <script src="./src/js/services/driveService.js"></script>
   <script src="./src/js/services/reportService.js"></script>
   
   <!-- UI Components -->
   <script src="./src/js/components/Navbar.js"></script>
+  <script src="./src/js/components/LoginModal.js"></script>
   <script src="./src/js/components/QuickLogModal.js"></script>
   <script src="./src/js/components/DashboardView.js"></script>
   <script src="./src/js/components/ProjectsView.js"></script>
+  <script src="./src/js/components/LabPracticesView.js"></script>
+  <script src="./src/js/components/RecurringTasksView.js"></script>
   <script src="./src/js/components/ApprovalsView.js"></script>
   <script src="./src/js/components/WeeklyReportView.js"></script>
   <script src="./src/js/components/TeamView.js"></script>

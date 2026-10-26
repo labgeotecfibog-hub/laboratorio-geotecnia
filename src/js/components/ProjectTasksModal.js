@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Componente Modal: Configuración y Gestión de Tareas (WBS) de Proyectos Creados
  * Identidad Institucional: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
@@ -267,10 +267,17 @@ window.GeoComponents.renderProjectTasksModal = function(isOpen, project, onClose
                     </div>
 
                     <div class="space-y-1">
-                      <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        Fecha Límite Específica
-                      </label>
-                      <input type="date" data-field="deadline" data-idx="${idx}" value="${act.deadline || project.deadline || ''}" class="w-full rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-700 outline-none focus:border-unal-400 bg-slate-50/30 focus:bg-white transition-all">
+                      <div class="flex items-center justify-between">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Fecha Límite Específica
+                        </label>
+                        ${(window.GeoUtils && window.GeoUtils.isTaskOverdue(act, project.deadline)) ? `
+                          <span class="text-[10px] font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200 animate-pulse">
+                            ⚠️ Vencida (+${window.GeoUtils.getTaskDelayDays(act, project.deadline)}d)
+                          </span>
+                        ` : ''}
+                      </div>
+                      <input type="date" data-field="deadline" data-idx="${idx}" value="${act.deadline || project.deadline || ''}" class="w-full rounded-lg border ${(window.GeoUtils && window.GeoUtils.isTaskOverdue(act, project.deadline)) ? 'border-rose-300 bg-rose-50/40 text-rose-900 font-bold' : 'border-slate-200 text-slate-700 bg-slate-50/30'} p-2 text-xs font-medium outline-none focus:border-unal-400 focus:bg-white transition-all">
                     </div>
                   </div>
 
@@ -285,7 +292,9 @@ window.GeoComponents.renderProjectTasksModal = function(isOpen, project, onClose
                       <select data-field="status" data-idx="${idx}" class="w-full rounded-lg border border-slate-200 p-2 text-xs font-semibold text-slate-800 outline-none focus:border-unal-400 bg-slate-50/30">
                         <option value="Pendiente" ${act.status === 'Pendiente' ? 'selected' : ''}>⏳ Pendiente</option>
                         <option value="En Ejecución" ${act.status === 'En Ejecución' ? 'selected' : ''}>⚡ En Ejecución</option>
-                        <option value="Completada" ${act.status === 'Completada' ? 'selected' : ''}>✅ Completada</option>
+                        <option value="Calculado" ${act.status === 'Calculado' ? 'selected' : ''}>🔴 Calculado (Tablero)</option>
+                        <option value="Revisado" ${act.status === 'Revisado' ? 'selected' : ''}>⚫ Revisado (Tablero)</option>
+                        <option value="Completada" ${act.status === 'Completada' ? 'selected' : ''}>✅ Hecho / Completada</option>
                       </select>
                     </div>
 

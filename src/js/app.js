@@ -1,6 +1,6 @@
 /**
  * Aplicación Principal - Laboratorio de Geotecnia
- * Controlador reactivo y enrutador de vistas
+ * Controlador reactivo, enrutador de vistas y gestor de apartados
  */
 
 class GeoPlatformApp {
@@ -8,12 +8,25 @@ class GeoPlatformApp {
     this.activeTab = 'dashboard';
     this.isQuickLogOpen = false;
     this.isDriveModalOpen = false;
+    this.isLoginModalOpen = false;
+    this.loginNoticeMessage = '';
     this.init();
   }
 
   init() {
+    // Reactividad a cambios en la base de datos local
     if (window.GeoStorage) {
       window.GeoStorage.subscribe(() => {
+        this.render();
+      });
+    }
+
+    // Reactividad a inicio/cierre de sesión de revisores
+    if (window.GeoAuth) {
+      window.GeoAuth.subscribe((user) => {
+        if (!user && this.activeTab === 'approvals') {
+          this.activeTab = 'dashboard';
+        }
         this.render();
       });
     }
@@ -26,6 +39,12 @@ class GeoPlatformApp {
   }
 
   setTab(tabName) {
+    // Si intenta ir a revisión sin estar autenticado como revisor, abrir modal de login
+    if (tabName === 'approvals' && (!window.GeoAuth || !window.GeoAuth.isReviewer())) {
+      this.openLogin('El apartado de Revisión y Aprobación de Avances está reservado para la Dirección y Coordinación. Inicia sesión con tus credenciales de revisor.');
+      return;
+    }
+
     this.activeTab = tabName;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     this.render();
@@ -42,6 +61,11 @@ class GeoPlatformApp {
   }
 
   openDriveSettings() {
+    // La configuración técnica de Drive requiere privilegios de revisor
+    if (!window.GeoAuth || !window.GeoAuth.isReviewer()) {
+      this.openLogin('La configuración de Google Drive y disparadores automáticos requiere permisos de Dirección y Coordinación.');
+      return;
+    }
     this.isDriveModalOpen = true;
     this.renderModal();
   }
@@ -49,6 +73,28 @@ class GeoPlatformApp {
   closeDriveSettings() {
     this.isDriveModalOpen = false;
     this.renderModal();
+  }
+
+  openLogin(noticeMessage = '') {
+    this.loginNoticeMessage = noticeMessage;
+    this.isLoginModalOpen = true;
+    this.renderModal();
+  }
+
+  closeLogin() {
+    this.isLoginModalOpen = false;
+    this.loginNoticeMessage = '';
+    this.renderModal();
+  }
+
+  handleLogout() {
+    if (window.GeoAuth) {
+      window.GeoAuth.logout();
+    }
+    if (this.activeTab === 'approvals') {
+      this.activeTab = 'dashboard';
+    }
+    this.render();
   }
 
   render() {
@@ -60,7 +106,9 @@ class GeoPlatformApp {
         this.activeTab,
         (tab) => this.setTab(tab),
         () => this.openQuickLog(),
-        () => this.openDriveSettings()
+        () => this.openDriveSettings(),
+        (msg) => this.openLogin(msg),
+        () => this.handleLogout()
       );
     }
 
@@ -73,7 +121,8 @@ class GeoPlatformApp {
           C.renderDashboardView(
             mainContainer,
             (tab) => this.setTab(tab),
-            () => this.openQuickLog()
+            () => this.openQuickLog(),
+            (msg) => this.openLogin(msg)
           );
         }
         break;
@@ -82,8 +131,21 @@ class GeoPlatformApp {
         if (C.renderProjectsView) {
           C.renderProjectsView(
             mainContainer,
-            () => this.openQuickLog()
+            () => this.openQuickLog(),
+            (msg) => this.openLogin(msg)
           );
+        }
+        break;
+
+      case 'practices':
+        if (C.renderLabPracticesView) {
+          C.renderLabPracticesView(mainContainer);
+        }
+        break;
+
+      case 'recurring-tasks':
+        if (C.renderRecurringTasksView) {
+          C.renderRecurringTasksView(mainContainer);
         }
         break;
 
@@ -91,7 +153,8 @@ class GeoPlatformApp {
         if (C.renderApprovalsView) {
           C.renderApprovalsView(
             mainContainer,
-            () => this.render()
+            () => this.render(),
+            (msg) => this.openLogin(msg)
           );
         }
         break;
@@ -113,7 +176,8 @@ class GeoPlatformApp {
           C.renderDashboardView(
             mainContainer,
             (tab) => this.setTab(tab),
-            () => this.openQuickLog()
+            () => this.openQuickLog(),
+            (msg) => this.openLogin(msg)
           );
         }
     }
@@ -127,6 +191,7 @@ class GeoPlatformApp {
     const C = window.GeoComponents;
     if (!C) return;
 
+    // 1. Modal de Registro de Avance (Kiosco)
     if (this.isQuickLogOpen && C.renderQuickLogModal) {
       C.renderQuickLogModal(
         true,
@@ -135,14 +200,34 @@ class GeoPlatformApp {
           this.render();
         }
       );
-    } else if (this.isDriveModalOpen && C.renderDriveSettingsModal) {
+    } else if (C.renderQuickLogModal) {
+      C.renderQuickLogModal(false);
+    }
+
+    // 2. Modal de Configuración Drive
+    if (this.isDriveModalOpen && C.renderDriveSettingsModal) {
       C.renderDriveSettingsModal(
         true,
         () => this.closeDriveSettings()
       );
-    } else {
-      if (C.renderQuickLogModal) C.renderQuickLogModal(false);
-      if (C.renderDriveSettingsModal) C.renderDriveSettingsModal(false);
+    } else if (C.renderDriveSettingsModal) {
+      C.renderDriveSettingsModal(false);
+    }
+
+    // 3. Modal de Autenticación de Revisores
+    if (this.isLoginModalOpen && C.renderLoginModal) {
+      C.renderLoginModal(
+        true,
+        this.loginNoticeMessage,
+        () => this.closeLogin(),
+        (user) => {
+          this.closeLogin();
+          // Si el usuario intentaba ir a revisión, llevarlo directo a la bandeja
+          this.setTab('approvals');
+        }
+      );
+    } else if (C.renderLoginModal) {
+      C.renderLoginModal(false);
     }
   }
 }

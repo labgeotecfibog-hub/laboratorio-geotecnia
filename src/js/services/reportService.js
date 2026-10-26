@@ -8,6 +8,8 @@ window.GeoReport = {
     const projects = window.GeoStorage.getProjects();
     const members = window.GeoStorage.getMembers();
     const logs = window.GeoStorage.getLogs();
+    const routines = window.GeoStorage.getRecurringTasks ? window.GeoStorage.getRecurringTasks() : [];
+    const practices = window.GeoStorage.getLabPractices ? window.GeoStorage.getLabPractices() : [];
     const range = window.GeoUtils.getWeekDateRange(weekNumber, year);
 
     const weeklyLogs = logs.filter(log => {
@@ -24,14 +26,19 @@ window.GeoReport = {
         const act = (proj.activities || []).find(a => a.id === log.activityId);
         return {
           logId: log.id,
-          activityName: act ? act.name : 'Actividad General',
+          activityId: log.activityId,
+          activityName: act ? act.name : 'Labor Técnica General',
+          deliverables: act ? act.deliverables : '',
           activityProgress: log.progressReported,
           weight: act ? act.weight : 0,
+          memberId: log.memberId,
           memberName: log.memberName,
           date: log.date,
           notes: log.notes,
           attachments: log.attachments || [],
-          hours: log.hoursWorked
+          hours: Number(log.hoursWorked) || 0,
+          reviewComments: log.reviewComments || '',
+          reviewedBy: log.reviewedBy
         };
       });
 
@@ -40,13 +47,14 @@ window.GeoReport = {
         code: proj.code,
         name: proj.name,
         type: proj.type,
-        client: proj.client,
+        client: proj.client || 'Universidad Nacional de Colombia',
         deadline: proj.deadline,
         status: proj.status,
         currentProgress: currentProgress,
         weeklyHours: weeklyHours,
         workedActivities: workedActivities,
-        hasActivityThisWeek: workedActivities.length > 0
+        hasActivityThisWeek: workedActivities.length > 0,
+        activitiesCount: (proj.activities || []).length
       };
     });
 
@@ -54,6 +62,25 @@ window.GeoReport = {
       const memberLogs = weeklyLogs.filter(l => l.memberId === m.id);
       const totalHours = memberLogs.reduce((sum, l) => sum + (Number(l.hoursWorked) || 0), 0);
       const projectsWorked = [...new Set(memberLogs.map(l => l.projectId))];
+
+      const tasks = memberLogs.map(log => {
+        const proj = projects.find(p => p.id === log.projectId);
+        const act = proj && proj.activities ? proj.activities.find(a => a.id === log.activityId) : null;
+        return {
+          logId: log.id,
+          projectCode: proj ? proj.code : 'PRJ',
+          projectName: proj ? proj.name : 'Proyecto General',
+          projectType: proj ? proj.type : '',
+          activityName: act ? act.name : 'Labor Técnica Asignada',
+          deliverables: act ? act.deliverables : '',
+          date: log.date,
+          hours: Number(log.hoursWorked) || 0,
+          progressReported: log.progressReported,
+          notes: log.notes,
+          attachments: log.attachments || [],
+          reviewComments: log.reviewComments || ''
+        };
+      });
 
       return {
         id: m.id,
@@ -63,9 +90,24 @@ window.GeoReport = {
         totalHours: totalHours,
         activitiesCount: memberLogs.length,
         projectsCount: projectsWorked.length,
+        tasks: tasks,
         logs: memberLogs
       };
     }).filter(m => m.totalHours > 0 || m.activitiesCount > 0);
+
+    // Rutinas operativas 5S completadas en la semana
+    const completedRoutines = routines.filter(r => {
+      if (!r.lastCompletedDate) return false;
+      const d = new Date(r.lastCompletedDate + 'T00:00:00');
+      return d >= range.start && d <= range.end;
+    });
+
+    // Prácticas docentes en el periodo
+    const weeklyPractices = practices.filter(p => {
+      if (!p.date) return false;
+      const d = new Date(p.date + 'T00:00:00');
+      return (d >= range.start && d <= range.end) || p.status === 'En Preparación de Material' || p.status === 'Lista para Iniciar';
+    });
 
     return {
       weekNumber,
@@ -76,10 +118,13 @@ window.GeoReport = {
       generatedAt: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
       totalProjects: projects.length,
       activeProjectsCount: projects.filter(p => p.status === 'En Ejecución').length,
+      projectsWithActivityCount: projectSummaries.filter(p => p.hasActivityThisWeek).length,
       totalWeeklyLogs: weeklyLogs.length,
       totalWeeklyHours: weeklyLogs.reduce((sum, l) => sum + (Number(l.hoursWorked) || 0), 0),
       projectSummaries,
-      memberContributions
+      memberContributions,
+      completedRoutines,
+      weeklyPractices
     };
   },
 
@@ -223,177 +268,310 @@ window.GeoReport = {
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Informe Semanal - Laboratorio de Geotecnia UNAL</title>
+  <title>Informe Técnico Semanal - Laboratorio de Geotecnia UNAL</title>
 </head>
-<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #1e293b;">
-  <div style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px 12px; color: #0f172a; line-height: 1.45;">
+  <div style="max-width: 720px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 18px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
     
-    <!-- Encabezado Institucional UNAL -->
-    <div style="background-color: #00361f; background: linear-gradient(135deg, #002414 0%, #00361f 50%, #004f2d 100%); padding: 24px 30px; border-bottom: 4px solid #94b43b; color: #ffffff;">
+    <!-- Membrete Institucional UNAL -->
+    <div style="background-color: #00361f; background: linear-gradient(135deg, #002414 0%, #00361f 55%, #004f2d 100%); padding: 24px 28px; border-bottom: 4px solid #94b43b; color: #ffffff;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td>
-            <span style="font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #94b43b; display: block;">
+            <span style="font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #94b43b; display: block; margin-bottom: 4px;">
               UNIVERSIDAD NACIONAL DE COLOMBIA • SEDE BOGOTÁ
             </span>
-            <h1 style="font-size: 20px; font-weight: 800; margin: 4px 0 2px 0; color: #ffffff; letter-spacing: -0.5px;">
-              Informe Semanal de Avance Geotécnico
+            <h1 style="font-size: 19px; font-weight: 800; margin: 0 0 4px 0; color: #ffffff; letter-spacing: -0.3px; line-height: 1.25;">
+              Informe Técnico Semanal de Gestión y Ensayos
             </h1>
-            <p style="font-size: 12px; margin: 0; color: #cbd5e1;">
-              Facultad de Ingeniería • Laboratorio de Geotecnia (Extensión e Investigación)
+            <p style="font-size: 11px; margin: 0; color: #cbd5e1; font-weight: 500;">
+              Facultad de Ingeniería • Departamento de Ingeniería Civil y Agrícola • Laboratorio de Geotecnia
             </p>
           </td>
           <td align="right" style="vertical-align: top;">
-            <div style="background: rgba(148, 180, 59, 0.2); border: 1px solid rgba(148, 180, 59, 0.4); padding: 6px 12px; border-radius: 8px; text-align: center;">
+            <div style="background: rgba(148, 180, 59, 0.15); border: 1px solid #94b43b; padding: 6px 12px; border-radius: 6px; text-align: center; white-space: nowrap;">
               <span style="font-size: 11px; font-weight: 800; color: #94b43b; display: block;">SEMANA ${data.weekNumber}</span>
-              <span style="font-size: 9px; color: #e2e8f0;">${data.year}</span>
+              <span style="font-size: 10px; color: #e2e8f0; font-family: monospace;">AÑO ${data.year}</span>
             </div>
           </td>
         </tr>
       </table>
     </div>
 
-    <div style="padding: 24px 30px;">
+    <div style="padding: 24px 28px;">
       
-      <!-- Metadatos del Informe -->
-      <table width="100%" cellpadding="8" cellspacing="0" style="background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 12px; margin-bottom: 20px;">
+      <!-- Ficha Técnica de Control Semanal -->
+      <table width="100%" cellpadding="6" cellspacing="0" style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 11px; margin-bottom: 20px; color: #1e293b;">
         <tr>
-          <td><strong>Periodo:</strong> ${data.dateRange}</td>
-          <td align="right"><strong>Fecha de emisión:</strong> ${data.generatedAt}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0;"><strong style="color: #475569;">Periodo Reportado:</strong> ${data.dateRange}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: right;"><strong style="color: #475569;">Fecha de Emisión:</strong> ${data.generatedAt}</td>
         </tr>
         <tr>
-          <td><strong>Proyectos Activos:</strong> ${data.activeProjectsCount} en ejecución</td>
-          <td align="right"><strong>Horas registradas esta semana:</strong> <span style="color: #004f2d; font-weight: bold;">${data.totalWeeklyHours.toFixed(1)} hrs</span></td>
+          <td style="padding: 8px 12px;"><strong style="color: #475569;">Proyectos con Ejecución:</strong> ${data.projectsWithActivityCount} de ${data.totalProjects} registrados</td>
+          <td style="padding: 8px 12px; text-align: right;"><strong style="color: #475569;">Horas-Hombre en Semana:</strong> <span style="color: #004f2d; font-weight: 800;">${data.totalWeeklyHours.toFixed(1)} hrs</span> (${data.totalWeeklyLogs} registros validados)</td>
         </tr>
       </table>
 
       ${customNotes ? `
-        <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 12px 16px; border-radius: 6px; font-size: 12px; color: #713f12; margin-bottom: 20px;">
-          <strong>Nota de Coordinación:</strong><br>
-          ${customNotes.replace(/\n/g, '<br>')}
+        <!-- Memorando / Observaciones de Coordinación -->
+        <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #d97706; padding: 12px 16px; border-radius: 6px; font-size: 11px; color: #78350f; margin-bottom: 22px;">
+          <strong style="color: #92400e; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Memorando / Observaciones de Coordinación:</strong>
+          <div style="line-height: 1.5;">${customNotes.replace(/\n/g, '<br>')}</div>
         </div>
       ` : ''}
 
-      <!-- Resumen de Proyectos y Avance WBS -->
-      <h2 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 18px 0 10px 0; border-bottom: 2px solid #004f2d; padding-bottom: 4px;">
-        1. Estado y Avance Ponderado de Proyectos
-      </h2>
-
-      <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse: collapse; font-size: 11px; margin-bottom: 24px;">
-        <thead>
-          <tr style="background-color: #00361f; color: #ffffff; text-align: left;">
-            <th style="padding: 8px; border-top-left-radius: 6px;">Código</th>
-            <th style="padding: 8px;">Proyecto</th>
-            <th style="padding: 8px;">Tipo</th>
-            <th style="padding: 8px; text-align: center;">% Avance</th>
-            <th style="padding: 8px; text-align: center;">Horas</th>
-            <th style="padding: 8px; text-align: center; border-top-right-radius: 6px;">Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.projectSummaries.map((p, idx) => `
-            <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 8px; font-family: monospace; font-weight: bold; color: #0f172a;">${p.code}</td>
-              <td style="padding: 8px; font-weight: 600; color: #1e293b;">${p.name}</td>
-              <td style="padding: 8px; color: #64748b;">${p.type}</td>
-              <td style="padding: 8px; text-align: center; font-weight: bold; color: #004f2d; font-family: monospace;">${p.currentProgress}%</td>
-              <td style="padding: 8px; text-align: center; color: #475569;">${p.weeklyHours} hrs</td>
-              <td style="padding: 8px; text-align: center;">
-                <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background-color: ${p.status === 'En Ejecución' ? '#dcfce7' : '#f1f5f9'}; color: ${p.status === 'En Ejecución' ? '#166534' : '#475569'};">
-                  ${p.status}
-                </span>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-
-      <!-- Detalle de Actividades y Enlaces a Drive -->
-      <h2 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 18px 0 10px 0; border-bottom: 2px solid #004f2d; padding-bottom: 4px;">
-        2. Actividades Validadas y Evidencias en Google Drive
-      </h2>
-
-      ${data.projectSummaries.filter(p => p.hasActivityThisWeek).length === 0 ? `
-        <p style="font-size: 12px; color: #64748b; font-style: italic;">No se registraron ensayos o actividades aprobadas durante esta semana.</p>
-      ` : data.projectSummaries.filter(p => p.hasActivityThisWeek).map(p => `
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-          <div style="font-size: 12px; font-weight: bold; color: #00361f; margin-bottom: 6px;">
-            [${p.code}] ${p.name} (${p.currentProgress}% global)
-          </div>
-          ${p.workedActivities.map(act => `
-            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 11px;">
-              <div style="display: flex; justify-content: space-between; font-weight: 600; color: #334155;">
-                <span>📌 ${act.activityName}</span>
-                <span style="color: #64748b;">${act.memberName} • ${act.hours} hrs</span>
-              </div>
-              <p style="margin: 4px 0 6px 0; color: #475569; font-style: italic;">"${act.notes}"</p>
-              ${(act.attachments && act.attachments.length > 0) ? `
-                <div style="margin-top: 4px;">
-                  <strong style="color: #004f2d; font-size: 10px;">Anexos en Google Drive:</strong>
-                  ${act.attachments.map(att => `
-                    <a href="${att.url || 'https://drive.google.com'}" target="_blank" style="display: inline-block; margin-left: 4px; padding: 2px 6px; background-color: #ecfccb; color: #365314; text-decoration: none; border-radius: 4px; font-size: 10px; font-weight: bold;">
-                      📎 ${att.name}
-                    </a>
-                  `).join('')}
-                </div>
-              ` : ''}
-            </div>
-          `).join('')}
+      <!-- 1. LABORES Y ENSAYOS DESARROLLADOS POR CADA INTEGRANTE -->
+      <div style="margin-bottom: 26px;">
+        <div style="border-bottom: 2px solid #00361f; padding-bottom: 4px; margin-bottom: 12px;">
+          <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 0; letter-spacing: 0.5px;">
+            1. Detalle de Labores y Ensayos Desarrollados por Integrante
+          </h2>
+          <span style="font-size: 10px; color: #64748b;">Bitácora técnica de turnos, ensayos y actividades individuales reportadas</span>
         </div>
-      `).join('')}
 
-      <!-- Aportes de Integrantes -->
-      <h2 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 20px 0 10px 0; border-bottom: 2px solid #004f2d; padding-bottom: 4px;">
-        3. Aportes por Integrante
-      </h2>
+        ${data.memberContributions.length === 0 ? `
+          <p style="font-size: 11px; color: #64748b; font-style: italic; padding: 12px; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; margin: 0;">
+            No se registraron horas ni turnos de laboratorio aprobados durante esta semana.
+          </p>
+        ` : data.memberContributions.map(m => `
+          <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px; overflow: hidden;">
+            
+            <!-- Encabezado de Integrante -->
+            <div style="background-color: #f1f5f9; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="font-size: 12px; color: #0f172a;">${m.name}</strong>
+                <span style="font-size: 10px; color: #475569; margin-left: 6px;">• ${m.role} (${m.category})</span>
+              </div>
+              <div style="text-align: right;">
+                <span style="background-color: #e2e8f0; color: #00361f; font-weight: 800; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-family: monospace;">
+                  ${m.totalHours.toFixed(1)} hrs dedicadas
+                </span>
+              </div>
+            </div>
 
-      <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 11px; margin-bottom: 24px;">
-        <thead>
-          <tr style="background-color: #f1f5f9; color: #475569; text-align: left;">
-            <th style="padding: 6px;">Integrante</th>
-            <th style="padding: 6px;">Rol / Categoría</th>
-            <th style="padding: 6px; text-align: center;">Horas Registradas</th>
-            <th style="padding: 6px; text-align: center;">Actividades</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.memberContributions.map((m, idx) => `
-            <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? '#ffffff' : '#fafafa'};">
-              <td style="padding: 6px; font-weight: bold; color: #1e293b;">${m.name}</td>
-              <td style="padding: 6px; color: #64748b;">${m.role}</td>
-              <td style="padding: 6px; text-align: center; font-weight: bold; color: #004f2d;">${m.totalHours} hrs</td>
-              <td style="padding: 6px; text-align: center; color: #475569;">${m.activitiesCount}</td>
+            <!-- Tareas ejecutadas por este integrante -->
+            <div style="padding: 10px 14px;">
+              <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 11px;">
+                ${m.tasks.map((t, tIdx) => `
+                  <tr style="border-bottom: ${tIdx === m.tasks.length - 1 ? 'none' : '1px solid #f1f5f9'};">
+                    <td style="vertical-align: top; width: 85px; padding: 8px 6px 8px 0; color: #64748b; font-family: monospace; font-size: 10px;">
+                      <strong>${t.date}</strong><br>
+                      <span style="color: #004f2d; font-weight: bold;">${t.hours} hrs</span>
+                    </td>
+                    <td style="vertical-align: top; padding: 8px 6px;">
+                      <div style="font-weight: bold; color: #0f172a; margin-bottom: 2px;">
+                        <span style="color: #004f2d; font-family: monospace;">[${t.projectCode}]</span> ${t.projectName}
+                      </div>
+                      <div style="color: #334155; font-size: 11px; font-weight: 600; margin-bottom: 4px;">
+                        Actividad: ${t.activityName} ${t.deliverables ? `(Entregable: ${t.deliverables})` : ''}
+                      </div>
+                      <div style="color: #1e293b; background-color: #f8fafc; border-left: 3px solid #94b43b; padding: 6px 10px; border-radius: 4px; font-size: 11px; line-height: 1.4; margin-bottom: 4px;">
+                        ${t.notes}
+                      </div>
+                      ${(t.attachments && t.attachments.length > 0) ? `
+                        <div style="font-size: 10px; color: #004f2d; margin-top: 4px;">
+                          <strong>Soportes / Datos en Drive:</strong>
+                          ${t.attachments.map(att => `
+                            <a href="${att.url || 'https://drive.google.com'}" target="_blank" style="color: #004f2d; text-decoration: underline; margin-left: 6px; font-weight: 600;">
+                              [${att.name}]
+                            </a>
+                          `).join('')}
+                        </div>
+                      ` : ''}
+                      ${t.reviewComments ? `
+                        <div style="font-size: 10px; color: #475569; margin-top: 3px; font-style: italic;">
+                          Validación técnica: "${t.reviewComments}"
+                        </div>
+                      ` : ''}
+                    </td>
+                    <td style="vertical-align: top; width: 70px; text-align: right; padding: 8px 0 8px 6px;">
+                      <span style="font-size: 10px; font-weight: bold; color: #166534; background-color: #dcfce7; padding: 2px 6px; border-radius: 4px;">
+                        ${t.progressReported}%
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- 2. ESTADO Y EJECUCIÓN TÉCNICA POR PROYECTO -->
+      <div style="margin-bottom: 26px;">
+        <div style="border-bottom: 2px solid #00361f; padding-bottom: 4px; margin-bottom: 12px;">
+          <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 0; letter-spacing: 0.5px;">
+            2. Estado y Ejecución Técnica por Proyecto
+          </h2>
+          <span style="font-size: 10px; color: #64748b;">Consolidado de avance ponderado WBS y actividades realizadas en el periodo</span>
+        </div>
+
+        <!-- Tabla Matriz General -->
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 11px; margin-bottom: 16px; border: 1px solid #cbd5e1;">
+          <thead>
+            <tr style="background-color: #00361f; color: #ffffff; text-align: left; font-size: 10px; text-transform: uppercase;">
+              <th style="padding: 8px 10px;">Código</th>
+              <th style="padding: 8px 10px;">Proyecto</th>
+              <th style="padding: 8px 10px;">Tipo / Entidad</th>
+              <th style="padding: 8px 10px; text-align: center;">Avance Global</th>
+              <th style="padding: 8px 10px; text-align: center;">Horas Semana</th>
+              <th style="padding: 8px 10px; text-align: center;">Estado</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${data.projectSummaries.map((p, idx) => `
+              <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 8px 10px; font-family: monospace; font-weight: bold; color: #0f172a;">${p.code}</td>
+                <td style="padding: 8px 10px; font-weight: 600; color: #1e293b;">${p.name}</td>
+                <td style="padding: 8px 10px; color: #475569; font-size: 10px;">${p.type} • ${p.client}</td>
+                <td style="padding: 8px 10px; text-align: center; font-weight: bold; color: #004f2d; font-family: monospace;">${p.currentProgress}%</td>
+                <td style="padding: 8px 10px; text-align: center; font-weight: ${p.weeklyHours > 0 ? 'bold' : 'normal'}; color: ${p.weeklyHours > 0 ? '#00361f' : '#94a3b8'};">
+                  ${p.weeklyHours > 0 ? p.weeklyHours + ' hrs' : '-'}
+                </td>
+                <td style="padding: 8px 10px; text-align: center;">
+                  <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; background-color: ${p.status === 'En Ejecución' ? '#dcfce7' : '#f1f5f9'}; color: ${p.status === 'En Ejecución' ? '#166534' : '#475569'};">
+                    ${p.status}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
 
-      <!-- Firmas Institucionales -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #cbd5e1; font-size: 10px; color: #475569; text-align: center;">
+        <!-- Detalle específico de los proyectos con ejecución en la semana -->
+        ${data.projectSummaries.filter(p => p.hasActivityThisWeek).map(p => `
+          <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #00361f; border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 800; font-size: 12px; color: #00361f;">
+                [${p.code}] ${p.name}
+              </span>
+              <span style="font-size: 11px; font-weight: bold; color: #004f2d;">
+                ${p.currentProgress}% completado (${p.weeklyHours} hrs aplicadas)
+              </span>
+            </div>
+            <div style="color: #475569; font-size: 10px; margin-bottom: 8px;">
+              Entidad/Cliente: <strong>${p.client}</strong> • Tipo: ${p.type} • Estado: ${p.status}
+            </div>
+
+            <!-- Actividades específicas trabajadas -->
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;">
+              <strong style="color: #334155; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;">
+                Actividades y ensayos desarrollados esta semana:
+              </strong>
+              ${p.workedActivities.map(act => `
+                <div style="border-bottom: 1px solid #f1f5f9; padding: 5px 0;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="font-weight: 600; color: #0f172a;">• ${act.activityName}</span>
+                    <span style="color: #64748b; font-size: 10px;">${act.memberName} (${act.hours} hrs, ${act.date})</span>
+                  </div>
+                  <div style="color: #334155; font-size: 10.5px; padding-left: 10px; margin-top: 2px;">
+                    ${act.notes}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- 3. GESTIÓN OPERATIVA, RUTINAS 5S Y PRÁCTICAS DOCENTES -->
+      ${((data.completedRoutines && data.completedRoutines.length > 0) || (data.weeklyPractices && data.weeklyPractices.length > 0)) ? `
+        <div style="margin-bottom: 26px;">
+          <div style="border-bottom: 2px solid #00361f; padding-bottom: 4px; margin-bottom: 12px;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; color: #00361f; margin: 0; letter-spacing: 0.5px;">
+              3. Operación de Laboratorio: Protocolo 5S y Prácticas Docentes
+            </h2>
+            <span style="font-size: 10px; color: #64748b;">Mantenimiento, aseo de instalaciones y soporte a asignaturas de cátedra</span>
+          </div>
+
+          ${(data.completedRoutines && data.completedRoutines.length > 0) ? `
+            <div style="margin-bottom: 12px;">
+              <strong style="font-size: 11px; color: #00361f; display: block; margin-bottom: 4px;">Rutinas de Aseo y Mantenimiento 5S Ejecutadas:</strong>
+              <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 10.5px; border: 1px solid #cbd5e1;">
+                <thead style="background-color: #f1f5f9; color: #475569; text-align: left;">
+                  <tr>
+                    <th style="padding: 6px 8px;">Rutina / Protocolo</th>
+                    <th style="padding: 6px 8px;">Área</th>
+                    <th style="padding: 6px 8px;">Responsable</th>
+                    <th style="padding: 6px 8px;">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.completedRoutines.map(r => `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 6px 8px; font-weight: 600; color: #1e293b;">${r.title}</td>
+                      <td style="padding: 6px 8px; color: #64748b;">${r.area}</td>
+                      <td style="padding: 6px 8px; color: #334155;">${r.lastCompletedByName || 'Personal Auxiliar'}</td>
+                      <td style="padding: 6px 8px; color: #475569; font-family: monospace;">${r.lastCompletedDate}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+
+          ${(data.weeklyPractices && data.weeklyPractices.length > 0) ? `
+            <div style="margin-top: 10px;">
+              <strong style="font-size: 11px; color: #00361f; display: block; margin-bottom: 4px;">Prácticas de Laboratorio Programadas / en Preparación:</strong>
+              <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse; font-size: 10.5px; border: 1px solid #cbd5e1;">
+                <thead style="background-color: #f1f5f9; color: #475569; text-align: left;">
+                  <tr>
+                    <th style="padding: 6px 8px;">Asignatura</th>
+                    <th style="padding: 6px 8px;">Profesor Titular</th>
+                    <th style="padding: 6px 8px;">Fecha</th>
+                    <th style="padding: 6px 8px; text-align: center;">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.weeklyPractices.map(p => `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 6px 8px; font-weight: 600; color: #1e293b;">${p.courseName}</td>
+                      <td style="padding: 6px 8px; color: #334155;">${p.professor || 'Docente Titular'}</td>
+                      <td style="padding: 6px 8px; color: #475569; font-family: monospace;">${p.date}</td>
+                      <td style="padding: 6px 8px; text-align: center;">
+                        <span style="font-size: 9.5px; font-weight: bold; color: #004f2d; background-color: #ecfccb; padding: 2px 6px; border-radius: 4px;">
+                          ${p.status}
+                        </span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      <!-- Control de Firmas Institucionales -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 28px; padding-top: 20px; border-top: 2px solid #cbd5e1; font-size: 10px; color: #475569; text-align: center;">
         <tr>
-          <td width="33%" style="padding: 0 10px;">
-            <div style="border-bottom: 1px solid #94a3b8; margin: 0 auto 6px auto; width: 140px;"></div>
-            <strong style="color: #0f172a; display: block;">Prof. Julio Esteban Colmenares, Ph.D.</strong>
-            Director Laboratorio de Geotecnia
+          <td width="33%" style="padding: 0 10px; vertical-align: top;">
+            <div style="border-bottom: 1px solid #64748b; margin: 0 auto 6px auto; width: 140px;"></div>
+            <strong style="color: #0f172a; display: block; font-size: 10.5px;">Prof. Julio Esteban Colmenares, Ph.D.</strong>
+            Director Laboratorio de Geotecnia<br>
+            <span style="color: #94a3b8; font-size: 9px;">Universidad Nacional de Colombia</span>
           </td>
-          <td width="33%" style="padding: 0 10px;">
-            <div style="border-bottom: 1px solid #94a3b8; margin: 0 auto 6px auto; width: 140px;"></div>
-            <strong style="color: #0f172a; display: block;">Ing. Daniel Felipe Rodríguez R.</strong>
-            Coordinador de Laboratorio e Investigación
+          <td width="33%" style="padding: 0 10px; vertical-align: top;">
+            <div style="border-bottom: 1px solid #64748b; margin: 0 auto 6px auto; width: 140px;"></div>
+            <strong style="color: #0f172a; display: block; font-size: 10.5px;">Ing. Daniel Felipe Rodríguez R.</strong>
+            Coordinador de Laboratorio e Investigación<br>
+            <span style="color: #94a3b8; font-size: 9px;">Universidad Nacional de Colombia</span>
           </td>
-          <td width="33%" style="padding: 0 10px;">
-            <div style="border-bottom: 1px solid #94a3b8; margin: 0 auto 6px auto; width: 140px;"></div>
-            <strong style="color: #0f172a; display: block;">Ing. Edwin Alexander Prieto S.</strong>
-            Coordinador de Operaciones
+          <td width="33%" style="padding: 0 10px; vertical-align: top;">
+            <div style="border-bottom: 1px solid #64748b; margin: 0 auto 6px auto; width: 140px;"></div>
+            <strong style="color: #0f172a; display: block; font-size: 10.5px;">Ing. Edwin Alexander Prieto S.</strong>
+            Coordinador de Operaciones<br>
+            <span style="color: #94a3b8; font-size: 9px;">Universidad Nacional de Colombia</span>
           </td>
         </tr>
       </table>
 
     </div>
 
-    <!-- Pie del Correo -->
+    <!-- Pie del Documento -->
     <div style="background-color: #002414; padding: 14px 20px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 2px solid #94b43b;">
-      Universidad Nacional de Colombia • Sede Bogotá • Facultad de Ingeniería • Edificio 407<br>
+      Universidad Nacional de Colombia • Sede Bogotá • Facultad de Ingeniería • Edificio 407 (Manuel Ancízar)<br>
       Sistema de Información y Control del Laboratorio de Geotecnia • <a href="mailto:labgeotec_fibog@unal.edu.co" style="color: #94b43b; text-decoration: none;">labgeotec_fibog@unal.edu.co</a>
     </div>
 
@@ -410,8 +588,8 @@ window.GeoReport = {
     const data = this.getWeeklyReportData(weekNumber, year);
     const htmlBody = this.generateHtmlEmail(weekNumber, year, options.customNotes || '');
 
-    const defaultTo = options.to || 'jecolmenaresm@unal.edu.co';
-    const defaultCc = options.cc || 'dfrodriguezr@unal.edu.co, eaprietos@unal.edu.co, labgeotec_fibog@unal.edu.co';
+    const defaultTo = options.to !== undefined && options.to !== null ? options.to : 'jecolmenaresm@unal.edu.co';
+    const defaultCc = options.cc !== undefined && options.cc !== null ? options.cc : 'dafrodriguezram@unal.edu.co, eaprietos@unal.edu.co, labgeotec_fibog@unal.edu.co';
     const subject = options.subject || `[Informe Semanal] Lab. Geotecnia UNAL - Semana ${weekNumber} (${data.dateRange})`;
 
     return await window.GeoDrive.sendEmailReport({
