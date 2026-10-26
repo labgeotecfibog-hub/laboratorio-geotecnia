@@ -261,7 +261,11 @@ window.GeoComponents.renderWeeklyReportView = function(container) {
             </div>
 
             <div class="space-y-3">
-              ${reportData.memberContributions.map(m => `
+              ${reportData.memberContributions.length === 0 ? `
+                <div class="p-6 rounded-xl bg-slate-50 text-center text-slate-500 text-xs border border-dashed border-slate-300">
+                  No se registraron horas ni avances técnicos aprobados por integrantes para esta semana.
+                </div>
+              ` : reportData.memberContributions.map(m => `
                 <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-3">
                   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 pb-2">
                     <div>

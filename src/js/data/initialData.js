@@ -267,7 +267,7 @@ window.GeoData = {
           weight: 10,
           progress: 100,
           status: 'Completada',
-          assignedTo: ['MEM-002'],
+          assignedTo: ['MEM-006'],
           deadline: '2026-09-25',
           deliverables: 'Fichas técnicas y cotizaciones de materiales rocosos'
         },
@@ -277,7 +277,7 @@ window.GeoData = {
           weight: 10,
           progress: 100,
           status: 'Completada',
-          assignedTo: ['MEM-002'],
+          assignedTo: ['MEM-006'],
           deadline: '2026-09-29',
           deliverables: 'Protocolos y primeros registros de caracterización de materiales'
         },
@@ -598,7 +598,7 @@ window.GeoData = {
       memberName: 'Cesar Leonardo Gomez Torres',
       date: '2026-09-04',
       hoursWorked: 4.0,
-      progressReported: 75,
+      progressReported: 0,
       notes: 'Consolidación de las tareas del tablero físico del laboratorio registradas para la semana del 31 de agosto al 4 de septiembre. Preparación de la matriz en Excel para seguimiento de la semana 7 a 11 de septiembre.',
       attachments: [
         {
@@ -613,94 +613,6 @@ window.GeoData = {
       reviewedBy: 'MEM-001',
       reviewDate: '2026-09-07',
       reviewComments: 'Información registrada y verificada con el tablero del laboratorio.'
-    },
-    {
-      id: 'LOG-2026-002',
-      projectId: 'PRJ-INV-2026-01',
-      activityId: 'ACT-INV01-01',
-      memberId: 'MEM-005',
-      memberName: 'Cesar Leonardo Gomez Torres',
-      date: '2026-10-21',
-      hoursWorked: 5.0,
-      progressReported: 35,
-      notes: 'Procesamiento de los registros de deformación axial y cambio volumétrico de la grava sílice. Verificación comparativa con parámetros de resistencia de la literatura técnica.',
-      attachments: [
-        {
-          name: 'Curvas_Triaxial_Grava_Silice_Literatura.xlsx',
-          size: '320 KB',
-          type: 'excel',
-          url: '#',
-          drivePath: 'Laboratorio_Geotecnia/2026/Investigacion/INV-01/Curvas_Triaxial_Grava_Silice_Literatura.xlsx'
-        }
-      ],
-      status: 'Aprobado',
-      reviewedBy: 'MEM-001',
-      reviewDate: '2026-10-22',
-      reviewComments: 'Envolvente de falla coherente con las especificaciones del material.'
-    },
-    {
-      id: 'LOG-2026-003',
-      projectId: 'PRJ-INV-2026-02',
-      activityId: 'ACT-INV02-02',
-      memberId: 'MEM-008',
-      memberName: 'Esteban Alexis Benitez Blanco',
-      date: '2026-10-21',
-      hoursWorked: 6.0,
-      progressReported: 20,
-      notes: 'Montaje de la consolidación C.R.S. (Constant Rate of Strain), saturación por contrapresión y verificación de estanqueidad de la celda.',
-      attachments: [
-        {
-          name: 'Registro_Montaje_CRS_Temperatura.pdf',
-          size: '1.2 MB',
-          type: 'pdf',
-          url: '#',
-          drivePath: 'Laboratorio_Geotecnia/2026/Investigacion/INV-02/Registro_Montaje_CRS_Temperatura.pdf'
-        }
-      ],
-      status: 'Aprobado',
-      reviewedBy: 'MEM-002',
-      reviewDate: '2026-10-22',
-      reviewComments: 'Montaje verificado conforme al protocolo.'
-    },
-    {
-      id: 'LOG-2026-004',
-      projectId: 'PRJ-EXT-2026-01',
-      activityId: 'ACT-EXT01-01',
-      memberId: 'MEM-008',
-      memberName: 'Esteban Alexis Benitez Blanco',
-      date: '2026-10-22',
-      hoursWorked: 8.0,
-      progressReported: 60,
-      notes: 'Ejecución de 4 ensayos de granulometría y Gravedad Específica (GS) para el proyecto de Anillo Vial (cumplimiento de 4 turnos de laboratorio registrados en tablero).',
-      attachments: [
-        {
-          name: 'Granulometrias_4_muestras_GS_AnilloVial.xlsx',
-          size: '410 KB',
-          type: 'excel',
-          url: '#',
-          drivePath: 'Laboratorio_Geotecnia/2026/Extension/EXT-01/Granulometrias_4_muestras_GS_AnilloVial.xlsx'
-        }
-      ],
-      status: 'Aprobado',
-      reviewedBy: 'MEM-003',
-      reviewDate: '2026-10-22',
-      reviewComments: 'Curvas granulométricas y gravedades específicas validadas.'
-    },
-    {
-      id: 'LOG-2026-005',
-      projectId: 'PRJ-LAB-2026-01',
-      activityId: 'ACT-LAB01-01',
-      memberId: 'MEM-009',
-      memberName: 'Gabriel Enrique Antonio Moreno Diaz',
-      date: '2026-10-22',
-      hoursWorked: 3.5,
-      progressReported: 80,
-      notes: 'Supervisión de la jornada 5S de aseo del laboratorio con SPMG y MKMM en sectores Suelos (S), Triaxiales (T) y Operaciones (O). Verificación de orden y registro de turnos.',
-      attachments: [],
-      status: 'Aprobado',
-      reviewedBy: 'MEM-002',
-      reviewDate: '2026-10-23',
-      reviewComments: 'Aseo completado satisfactoriamente.'
     }
   ],
 

@@ -28,8 +28,9 @@ class StorageService {
       DRIVE_CONFIG: {}
     };
 
-    const CURRENT_VERSION = '2026.10.26_custom_professors_v11';
+    const CURRENT_VERSION = '2026.10.26_clean_real_data_v12';
     const storedVersion = localStorage.getItem('lab_geo_data_version');
+    const FAKE_LOG_IDS = new Set(['LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
 
     if (storedVersion !== CURRENT_VERSION || !localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
       // 1. Preservar Drive Config
@@ -49,16 +50,16 @@ class StorageService {
         }
       }
 
-      // 2. PRESERVAR LOGS EXISTENTES (¡Nunca borrar avances registrados por los usuarios!)
+      // 2. PRESERVAR LOGS EXISTENTES (Purgando registros ficticios de prueba)
       const storedLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
       let logsToSave = defaultData.INITIAL_LOGS;
       if (storedLogs) {
         try {
           const parsedLogs = JSON.parse(storedLogs);
           if (Array.isArray(parsedLogs) && parsedLogs.length > 0) {
-            // Combinar registros asegurando que no se pierda ninguno creado por el usuario
+            const cleanLogs = parsedLogs.filter(l => !FAKE_LOG_IDS.has(l.id));
             const seedIds = new Set(defaultData.INITIAL_LOGS.map(l => l.id));
-            const userCustomLogs = parsedLogs.filter(l => !seedIds.has(l.id));
+            const userCustomLogs = cleanLogs.filter(l => !seedIds.has(l.id));
             logsToSave = [...userCustomLogs, ...defaultData.INITIAL_LOGS];
           }
         } catch (e) {
@@ -413,7 +414,9 @@ class StorageService {
   getLogs() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.LOGS);
-      return data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_LOGS : []);
+      const parsed = data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_LOGS : []);
+      const FAKE_LOG_IDS = new Set(['LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
+      return Array.isArray(parsed) ? parsed.filter(l => !FAKE_LOG_IDS.has(l.id)) : [];
     } catch {
       return window.GeoData ? window.GeoData.INITIAL_LOGS : [];
     }
