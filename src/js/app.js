@@ -7,6 +7,7 @@ class GeoPlatformApp {
   constructor() {
     this.activeTab = 'dashboard';
     this.isQuickLogOpen = false;
+    this.quickLogInitialProjectId = null;
     this.isDriveModalOpen = false;
     this.isLoginModalOpen = false;
     this.loginNoticeMessage = '';
@@ -50,13 +51,15 @@ class GeoPlatformApp {
     this.render();
   }
 
-  openQuickLog() {
+  openQuickLog(initialProjectId = null) {
     this.isQuickLogOpen = true;
+    this.quickLogInitialProjectId = initialProjectId;
     this.renderModal();
   }
 
   closeQuickLog() {
     this.isQuickLogOpen = false;
+    this.quickLogInitialProjectId = null;
     this.renderModal();
   }
 
@@ -198,7 +201,8 @@ class GeoPlatformApp {
         () => this.closeQuickLog(),
         () => {
           this.render();
-        }
+        },
+        this.quickLogInitialProjectId
       );
     } else if (C.renderQuickLogModal) {
       C.renderQuickLogModal(false);

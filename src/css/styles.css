@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    IDENTIDAD VISUAL UNIVERSIDAD NACIONAL DE COLOMBIA - LABORATORIO DE GEOTECNIA
    Tipografía Oficial: Ancízar Sans
    Colores Institucionales: Verde UNAL (#94B43B, #004F2D), Gris (#5C666A), Rojo Alterno (#C4261D)
@@ -193,6 +193,10 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   .unal-top-bar,
   #toast-container,
   #quick-log-modal-container,
+  #drive-modal-container,
+  #login-modal-container,
+  #project-tasks-modal-container,
+  #general-modal-container,
   .no-print,
   .flex.flex-wrap.items-center.gap-2.5,
   #btn-send-email-report,

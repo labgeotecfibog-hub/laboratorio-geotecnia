@@ -1,11 +1,11 @@
-﻿/**
+/**
  * Componente Modal: Formulario de Registro Ágil de Avance ("Kiosco")
  * Identidad Visual: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
 
 window.GeoComponents = window.GeoComponents || {};
 
-window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess) {
+window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, initialProjectId = null) {
   const modalContainer = document.getElementById('quick-log-modal-container');
   if (!modalContainer) return;
 
@@ -14,14 +14,14 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess) 
     return;
   }
 
-  const members = window.GeoStorage.getMembers().filter(m => m.active);
-  const projects = window.GeoStorage.getProjects().filter(p => p.status !== 'Finalizado');
+  const members = window.GeoStorage.getMembers().filter(m => m && m.active !== false);
+  const projects = window.GeoStorage.getProjects().filter(p => p && p.status !== 'Finalizado');
 
   let selectedFiles = [];
 
   modalContainer.innerHTML = `
-    <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fadeIn">
-      <div class="glass-card bg-white rounded-2xl shadow-2xl max-w-2xl w-full border-2 border-unal-400/40 overflow-hidden transform transition-all">
+    <div id="quick-log-modal-backdrop" class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fadeIn">
+      <div class="glass-card bg-white rounded-2xl shadow-2xl max-w-2xl w-full border-2 border-unal-400/40 overflow-hidden transform transition-all" onclick="event.stopPropagation()">
         
         <!-- Header -->
         <div class="bg-gradient-to-r from-unal-900 via-unal-800 to-unal-700 p-5 text-white flex items-center justify-between border-b-2 border-unal-400">
@@ -216,6 +216,11 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess) 
     drivePathText.textContent = window.GeoDrive.generateDrivePath(selectedProj, '[Nombre_Archivo]');
   });
 
+  if (initialProjectId && projects.some(p => p.id === initialProjectId)) {
+    projectSelect.value = initialProjectId;
+    projectSelect.dispatchEvent(new Event('change'));
+  }
+
   activitySelect.addEventListener('change', () => {
     const projId = projectSelect.value;
     const actId = activitySelect.value;
@@ -284,8 +289,31 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess) 
     if (window.lucide) window.lucide.createIcons();
   }
 
-  modalContainer.querySelector('#btn-close-modal').addEventListener('click', onClose);
-  modalContainer.querySelector('#btn-cancel-modal').addEventListener('click', onClose);
+  const handleKeydown = (e) => {
+    if (e.key === 'Escape') {
+      cleanup();
+      onClose();
+    }
+  };
+  const cleanup = () => {
+    window.removeEventListener('keydown', handleKeydown);
+  };
+  window.addEventListener('keydown', handleKeydown);
+
+  const safeClose = () => {
+    cleanup();
+    onClose();
+  };
+
+  modalContainer.querySelector('#btn-close-modal').addEventListener('click', safeClose);
+  modalContainer.querySelector('#btn-cancel-modal').addEventListener('click', safeClose);
+
+  const backdrop = modalContainer.querySelector('#quick-log-modal-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) safeClose();
+    });
+  }
 
   const form = modalContainer.querySelector('#quick-log-form');
   form.addEventListener('submit', async (e) => {
@@ -344,7 +372,7 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess) 
       });
     }
 
-    onClose();
+    safeClose();
     if (onSuccess) onSuccess();
   });
 };

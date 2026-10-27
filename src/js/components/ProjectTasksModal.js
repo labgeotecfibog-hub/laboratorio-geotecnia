@@ -6,7 +6,7 @@
 window.GeoComponents = window.GeoComponents || {};
 
 window.GeoComponents.renderProjectTasksModal = function(isOpen, project, onClose, onSave) {
-  const modalContainer = document.getElementById('quick-log-modal-container');
+  const modalContainer = document.getElementById('project-tasks-modal-container') || document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
   if (!modalContainer) return;
 
   if (!isOpen || !project) {

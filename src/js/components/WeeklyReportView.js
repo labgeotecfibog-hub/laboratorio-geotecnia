@@ -378,7 +378,7 @@ window.GeoComponents.renderWeeklyReportView = function(container) {
   }
 
   function openSendEmailModal(week, year) {
-    const modalHost = document.getElementById('quick-log-modal-container');
+    const modalHost = document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
     if (!modalHost) return;
 
     const data = window.GeoReport.getWeeklyReportData(week, year);

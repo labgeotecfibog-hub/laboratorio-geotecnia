@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Componente: Gestión de Integrantes y Equipo del Laboratorio
  * Identidad Visual: Universidad Nacional de Colombia • Laboratorio de Geotecnia
  */
@@ -107,7 +107,7 @@ window.GeoComponents.renderTeamView = function(container) {
     `;
 
     container.querySelector('#btn-add-member').addEventListener('click', () => {
-      const modalHost = document.getElementById('quick-log-modal-container');
+      const modalHost = document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
       modalHost.innerHTML = `
         <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
           <div class="glass-card bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-unal-400/40 overflow-hidden">
@@ -217,7 +217,7 @@ window.GeoComponents.renderTeamView = function(container) {
   }
 
   function openEditMemberModal(member) {
-    const modalHost = document.getElementById('quick-log-modal-container');
+    const modalHost = document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
     if (!modalHost) return;
 
     modalHost.innerHTML = `

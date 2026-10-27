@@ -271,7 +271,8 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
 
     container.querySelectorAll('[data-quick-log-project]').forEach(btn => {
       btn.addEventListener('click', () => {
-        onOpenQuickLog();
+        const projId = btn.getAttribute('data-quick-log-project');
+        onOpenQuickLog(projId);
       });
     });
 
@@ -338,7 +339,7 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
   }
 
   function openCreateProjectModal() {
-    const modalHost = document.getElementById('quick-log-modal-container');
+    const modalHost = document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
     let activities = [
       { name: 'Revisión preliminar, muestreo y calibración de equipos', weight: 25, deliverables: 'Fichas de muestreo', progress: 0 },
       { name: 'Ejecución de ensayos geotécnicos de laboratorio', weight: 45, deliverables: 'Curvas y lecturas de ensayos', progress: 0 },
@@ -523,7 +524,7 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
   }
 
   function openEditProjectModal(project) {
-    const modalHost = document.getElementById('quick-log-modal-container');
+    const modalHost = document.getElementById('general-modal-container') || document.getElementById('quick-log-modal-container');
     if (!modalHost) return;
 
     modalHost.innerHTML = `

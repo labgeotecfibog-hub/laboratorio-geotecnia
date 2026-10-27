@@ -6,7 +6,7 @@
 window.GeoComponents = window.GeoComponents || {};
 
 window.GeoComponents.renderDriveSettingsModal = function(isOpen, onClose) {
-  const modalContainer = document.getElementById('quick-log-modal-container');
+  const modalContainer = document.getElementById('drive-modal-container') || document.getElementById('quick-log-modal-container');
   if (!modalContainer) return;
 
   if (!isOpen) {
