@@ -28,9 +28,11 @@ class StorageService {
       DRIVE_CONFIG: {}
     };
 
-    const CURRENT_VERSION = '2026.10.26_clean_real_data_v12';
+    const CURRENT_VERSION = '2026.10.27_clean_practices_and_routines_v13';
     const storedVersion = localStorage.getItem('lab_geo_data_version');
     const FAKE_LOG_IDS = new Set(['LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
+    const FAKE_TASK_IDS = new Set(['REC-001', 'REC-002', 'REC-003', 'REC-004', 'REC-005', 'REC-006', 'REC-007']);
+    const FAKE_PRACTICE_IDS = new Set(['PRAC-2026-001', 'PRAC-2026-002', 'PRAC-2026-003', 'PRAC-2026-004']);
 
     if (storedVersion !== CURRENT_VERSION || !localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
       // 1. Preservar Drive Config
@@ -88,49 +90,37 @@ class StorageService {
       membersToSave = (membersToSave || []).filter(m => !this.isIncompleteMember(m));
 
       // 5. Preservar Rutinas / Tareas Recurrentes (Aseo, Orden, Mantenimiento)
+      const deletedRecurringIds = this.getDeletedRecurringIds();
       const storedRoutines = localStorage.getItem(STORAGE_KEYS.RECURRING_TASKS);
-      let routinesToSave = defaultData.INITIAL_RECURRING_TASKS || [];
-      if (storedRoutines) {
+      let routinesToSave = [];
+      if (storedRoutines !== null) {
         try {
           const parsedRoutines = JSON.parse(storedRoutines);
-          if (Array.isArray(parsedRoutines) && parsedRoutines.length > 0) {
-            const seedIds = new Set((defaultData.INITIAL_RECURRING_TASKS || []).map(r => r.id));
-            const customRoutines = parsedRoutines.filter(r => !seedIds.has(r.id));
-            routinesToSave = [...(defaultData.INITIAL_RECURRING_TASKS || []), ...customRoutines];
+          if (Array.isArray(parsedRoutines)) {
+            routinesToSave = parsedRoutines.filter(r => !deletedRecurringIds.has(r.id) && !FAKE_TASK_IDS.has(r.id));
           }
         } catch (e) {
           console.warn('Error reading stored recurring tasks:', e);
         }
+      } else {
+        routinesToSave = (defaultData.INITIAL_RECURRING_TASKS || []).filter(r => !deletedRecurringIds.has(r.id));
       }
 
-      // 6. Preservar Prácticas de Laboratorio (actualizando docentes si correspondían a coordinadores del lab)
+      // 6. Preservar Prácticas de Laboratorio
+      const deletedPracticeIds = this.getDeletedPracticeIds();
       const storedPractices = localStorage.getItem(STORAGE_KEYS.LAB_PRACTICES);
-      let practicesToSave = defaultData.INITIAL_LAB_PRACTICES || [];
-      if (storedPractices) {
+      let practicesToSave = [];
+      if (storedPractices !== null) {
         try {
           const parsedPractices = JSON.parse(storedPractices);
-          if (Array.isArray(parsedPractices) && parsedPractices.length > 0) {
-            practicesToSave = (defaultData.INITIAL_LAB_PRACTICES || []).map(dp => {
-              const existing = parsedPractices.find(p => p.id === dp.id);
-              if (!existing) return dp;
-              const isOldLabStaff = existing.professor && (
-                existing.professor.includes('Colmenares') || 
-                existing.professor.includes('Daniel Felipe') || 
-                existing.professor.includes('Edwin Alexander')
-              );
-              return {
-                ...existing,
-                professor: isOldLabStaff ? dp.professor : existing.professor,
-                professorEmail: isOldLabStaff ? dp.professorEmail : existing.professorEmail
-              };
-            });
-            const seedIds = new Set((defaultData.INITIAL_LAB_PRACTICES || []).map(p => p.id));
-            const customPractices = parsedPractices.filter(p => !seedIds.has(p.id));
-            practicesToSave = [...practicesToSave, ...customPractices];
+          if (Array.isArray(parsedPractices)) {
+            practicesToSave = parsedPractices.filter(p => !deletedPracticeIds.has(p.id) && !FAKE_PRACTICE_IDS.has(p.id));
           }
         } catch (e) {
           console.warn('Error reading stored lab practices:', e);
         }
+      } else {
+        practicesToSave = (defaultData.INITIAL_LAB_PRACTICES || []).filter(p => !deletedPracticeIds.has(p.id));
       }
 
       localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projectsToSave));
@@ -141,12 +131,16 @@ class StorageService {
       localStorage.setItem(STORAGE_KEYS.LAB_PRACTICES, JSON.stringify(practicesToSave));
       localStorage.setItem('lab_geo_data_version', CURRENT_VERSION);
     } else {
-      // Si el almacenamiento ya está en versión actual, asegurar que las nuevas colecciones existan
-      if (!localStorage.getItem(STORAGE_KEYS.RECURRING_TASKS) && defaultData.INITIAL_RECURRING_TASKS) {
-        localStorage.setItem(STORAGE_KEYS.RECURRING_TASKS, JSON.stringify(defaultData.INITIAL_RECURRING_TASKS));
+      // Si el almacenamiento ya está en versión actual, asegurar que no se reinserten tareas eliminadas
+      const deletedRecurringIds = this.getDeletedRecurringIds();
+      if (localStorage.getItem(STORAGE_KEYS.RECURRING_TASKS) === null && defaultData.INITIAL_RECURRING_TASKS) {
+        const seedRoutines = defaultData.INITIAL_RECURRING_TASKS.filter(r => !deletedRecurringIds.has(r.id));
+        localStorage.setItem(STORAGE_KEYS.RECURRING_TASKS, JSON.stringify(seedRoutines));
       }
-      if (!localStorage.getItem(STORAGE_KEYS.LAB_PRACTICES) && defaultData.INITIAL_LAB_PRACTICES) {
-        localStorage.setItem(STORAGE_KEYS.LAB_PRACTICES, JSON.stringify(defaultData.INITIAL_LAB_PRACTICES));
+      const deletedPracticeIds = this.getDeletedPracticeIds();
+      if (localStorage.getItem(STORAGE_KEYS.LAB_PRACTICES) === null && defaultData.INITIAL_LAB_PRACTICES) {
+        const seedPractices = defaultData.INITIAL_LAB_PRACTICES.filter(p => !deletedPracticeIds.has(p.id));
+        localStorage.setItem(STORAGE_KEYS.LAB_PRACTICES, JSON.stringify(seedPractices));
       }
     }
 
@@ -495,11 +489,29 @@ class StorageService {
     this.notify();
   }
 
+  getDeletedRecurringIds() {
+    try {
+      const data = localStorage.getItem('lab_geo_deleted_recurring_ids');
+      return data ? new Set(JSON.parse(data)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  trackDeletedRecurringTask(taskId) {
+    if (!taskId) return;
+    const set = this.getDeletedRecurringIds();
+    set.add(taskId);
+    localStorage.setItem('lab_geo_deleted_recurring_ids', JSON.stringify([...set]));
+  }
+
   // --- Tareas Recurrentes (Aseo, Orden, Mantenimiento Rutinario) ---
   getRecurringTasks() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.RECURRING_TASKS);
-      return data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_RECURRING_TASKS : []);
+      const deletedIds = this.getDeletedRecurringIds();
+      const list = data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_RECURRING_TASKS : []);
+      return Array.isArray(list) ? list.filter(t => !deletedIds.has(t.id)) : [];
     } catch {
       return window.GeoData ? window.GeoData.INITIAL_RECURRING_TASKS : [];
     }
@@ -531,6 +543,7 @@ class StorageService {
   }
 
   deleteRecurringTask(taskId) {
+    this.trackDeletedRecurringTask(taskId);
     let tasks = this.getRecurringTasks().filter(t => t.id !== taskId);
     this.saveRecurringTasks(tasks);
   }
@@ -573,11 +586,29 @@ class StorageService {
     this.saveRecurringTasks(tasks);
   }
 
+  getDeletedPracticeIds() {
+    try {
+      const data = localStorage.getItem('lab_geo_deleted_practice_ids');
+      return data ? new Set(JSON.parse(data)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  trackDeletedLabPractice(practiceId) {
+    if (!practiceId) return;
+    const set = this.getDeletedPracticeIds();
+    set.add(practiceId);
+    localStorage.setItem('lab_geo_deleted_practice_ids', JSON.stringify([...set]));
+  }
+
   // --- Prácticas de Laboratorio (Docencia Académica) ---
   getLabPractices() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.LAB_PRACTICES);
-      return data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_LAB_PRACTICES : []);
+      const deletedIds = this.getDeletedPracticeIds();
+      const list = data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_LAB_PRACTICES : []);
+      return Array.isArray(list) ? list.filter(p => !deletedIds.has(p.id)) : [];
     } catch {
       return window.GeoData ? window.GeoData.INITIAL_LAB_PRACTICES : [];
     }
@@ -611,6 +642,7 @@ class StorageService {
   }
 
   deleteLabPractice(practiceId) {
+    this.trackDeletedLabPractice(practiceId);
     let practices = this.getLabPractices().filter(p => p.id !== practiceId);
     this.saveLabPractices(practices);
   }
