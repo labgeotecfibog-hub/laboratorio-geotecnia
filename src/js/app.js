@@ -56,15 +56,19 @@ class GeoPlatformApp {
     }
   }
 
-  openQuickLog(initialProjectId = null) {
+  openQuickLog(initialProjectId = null, initialActivityId = null, initialMemberId = null) {
     this.isQuickLogOpen = true;
     this.quickLogInitialProjectId = initialProjectId;
+    this.quickLogInitialActivityId = initialActivityId;
+    this.quickLogInitialMemberId = initialMemberId;
     this.renderModal();
   }
 
   closeQuickLog() {
     this.isQuickLogOpen = false;
     this.quickLogInitialProjectId = null;
+    this.quickLogInitialActivityId = null;
+    this.quickLogInitialMemberId = null;
     this.renderModal();
   }
 
@@ -129,7 +133,7 @@ class GeoPlatformApp {
           C.renderDashboardView(
             mainContainer,
             (tab) => this.setTab(tab),
-            () => this.openQuickLog(),
+            (projId, actId, memberId) => this.openQuickLog(projId, actId, memberId),
             (msg) => this.openLogin(msg)
           );
         }
@@ -139,7 +143,7 @@ class GeoPlatformApp {
         if (C.renderProjectsView) {
           C.renderProjectsView(
             mainContainer,
-            () => this.openQuickLog(),
+            (projId, actId, memberId) => this.openQuickLog(projId, actId, memberId),
             (msg) => this.openLogin(msg)
           );
         }
@@ -184,7 +188,7 @@ class GeoPlatformApp {
           C.renderDashboardView(
             mainContainer,
             (tab) => this.setTab(tab),
-            () => this.openQuickLog(),
+            (projId, actId, memberId) => this.openQuickLog(projId, actId, memberId),
             (msg) => this.openLogin(msg)
           );
         }
@@ -207,7 +211,9 @@ class GeoPlatformApp {
         () => {
           this.render();
         },
-        this.quickLogInitialProjectId
+        this.quickLogInitialProjectId,
+        this.quickLogInitialActivityId,
+        this.quickLogInitialMemberId
       );
     } else if (C.renderQuickLogModal) {
       C.renderQuickLogModal(false);

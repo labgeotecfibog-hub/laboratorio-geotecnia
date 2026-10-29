@@ -14,6 +14,7 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
 
   function render() {
     const allProjects = window.GeoStorage.getProjects();
+    const allLogs = window.GeoStorage.getLogs();
     const filteredProjects = allProjects.filter(p => {
       const matchType = filterType === 'all' || p.type === filterType;
       const matchSearch = searchTerm === '' || 
@@ -72,6 +73,7 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
             const progress = window.GeoUtils.calculateProjectProgress(p);
             const health = window.GeoUtils.getProjectHealth(p);
             const totalWeight = (p.activities || []).reduce((sum, a) => sum + (Number(a.weight) || 0), 0);
+            const projAdjustmentLogs = allLogs.filter(l => l.projectId === p.id && l.status === 'Ajuste Solicitado');
 
             return `
               <div class="glass-card rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all">
@@ -93,6 +95,12 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
                             <i data-lucide="folder-symlink" class="w-3 h-3 text-unal-700"></i>
                             <span>Drive: ${p.driveFolderName.substring(0, 20)}...</span>
                           </a>
+                        ` : ''}
+                        ${projAdjustmentLogs.length > 0 ? `
+                          <span class="inline-flex items-center space-x-1 text-xs font-bold px-2.5 py-0.5 bg-amber-100 text-amber-900 rounded-md border border-amber-300 animate-pulse" title="Este proyecto contiene entregables con ajustes técnicos solicitados">
+                            <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-700"></i>
+                            <span>${projAdjustmentLogs.length} ajuste${projAdjustmentLogs.length > 1 ? 's' : ''} pendiente${projAdjustmentLogs.length > 1 ? 's' : ''}</span>
+                          </span>
                         ` : ''}
                         ${(window.GeoUtils && window.GeoUtils.getProjectOverdueTasks(p).length > 0) ? `
                           <span class="inline-flex items-center space-x-1 text-xs font-bold px-2.5 py-0.5 bg-rose-100 text-rose-800 rounded-md border border-rose-300 animate-pulse" title="Este proyecto contiene actividades que superaron la fecha límite">
@@ -170,6 +178,8 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
                       const isComplete = act.progress >= 100 || act.status === 'Completada' || act.status === 'Hecho';
                       const isOverdue = window.GeoUtils && window.GeoUtils.isTaskOverdue(act, p.deadline);
                       const delayDays = isOverdue ? window.GeoUtils.getTaskDelayDays(act, p.deadline) : 0;
+                      const actAdjustmentLogs = allLogs.filter(l => l.activityId === act.id && l.status === 'Ajuste Solicitado');
+                      const hasAdjustment = actAdjustmentLogs.length > 0;
 
                       let statusBadgeClass = 'bg-slate-100 text-slate-700';
                       let statusIconText = act.status || 'En Ejecución';
@@ -192,13 +202,19 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
                       }
 
                       return `
-                        <div class="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isOverdue ? 'bg-rose-50/50 border-l-4 border-l-rose-500' : 'hover:bg-slate-50'} transition-colors">
+                        <div class="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${hasAdjustment ? 'bg-amber-50/50 border-l-4 border-l-amber-500' : isOverdue ? 'bg-rose-50/50 border-l-4 border-l-rose-500' : 'hover:bg-slate-50'} transition-colors">
                           <div class="space-y-1 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                               <span class="font-bold text-slate-800">${index + 1}. ${act.name}</span>
                               <span class="px-2 py-0.5 rounded text-[10px] font-bold ${statusBadgeClass}">
                                 ${statusIconText}
                               </span>
+                              ${hasAdjustment ? `
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1 animate-pulse" title="La revisión técnica solicitó ajustes en esta actividad">
+                                  <i data-lucide="message-square" class="w-3 h-3 text-amber-700"></i>
+                                  <span>Ajuste Solicitado (${actAdjustmentLogs.length})</span>
+                                </span>
+                              ` : ''}
                               ${isOverdue ? `
                                 <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 flex items-center space-x-1 animate-pulse shadow-2xs" title="Esta tarea debió finalizarse el ${window.GeoUtils.formatDateCO(act.deadline || p.deadline)}">
                                   <i data-lucide="alert-triangle" class="w-3 h-3 text-rose-600"></i>
@@ -222,6 +238,27 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
                                 ${isOverdue ? `<span class="text-rose-600 font-bold ml-1">(Venció hace ${delayDays} día${delayDays > 1 ? 's' : ''})</span>` : ''}
                               </div>
                             </div>
+
+                            ${hasAdjustment ? `
+                              <div class="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                                <div class="space-y-1 flex-1">
+                                  <div class="flex items-center space-x-1.5 font-bold text-amber-900">
+                                    <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0"></i>
+                                    <span>Observación de Revisión (${actAdjustmentLogs[0].reviewedBy || 'Coordinación'} • ${window.GeoUtils.formatDateCO(actAdjustmentLogs[0].reviewDate)}):</span>
+                                  </div>
+                                  <p class="text-xs text-amber-900 italic font-medium pl-5 leading-relaxed">
+                                    "${actAdjustmentLogs[0].reviewComments || 'Se requieren correcciones técnicas en los entregables presentados.'}"
+                                  </p>
+                                  <div class="pl-5 text-[11px] text-slate-500">
+                                    Reportado previamente por: <strong>${actAdjustmentLogs[0].memberName}</strong>
+                                  </div>
+                                </div>
+                                <button class="btn-subsanar-act-ajuste px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5 shrink-0" data-proj="${p.id}" data-act="${act.id}" data-member="${actAdjustmentLogs[0].memberId}">
+                                  <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                  <span>Subsanar y Reenviar</span>
+                                </button>
+                              </div>
+                            ` : ''}
                           </div>
 
                           <div class="flex items-center space-x-4 shrink-0 justify-between sm:justify-end">
@@ -273,6 +310,17 @@ window.GeoComponents.renderProjectsView = function(container, onOpenQuickLog, on
       btn.addEventListener('click', () => {
         const projId = btn.getAttribute('data-quick-log-project');
         onOpenQuickLog(projId);
+      });
+    });
+
+    container.querySelectorAll('.btn-subsanar-act-ajuste').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const projId = btn.getAttribute('data-proj');
+        const actId = btn.getAttribute('data-act');
+        const memberId = btn.getAttribute('data-member');
+        if (onOpenQuickLog) {
+          onOpenQuickLog(projId, actId, memberId);
+        }
       });
     });
 

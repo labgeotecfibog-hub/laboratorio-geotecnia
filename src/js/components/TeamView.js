@@ -31,6 +31,7 @@ window.GeoComponents.renderTeamView = function(container) {
             const memberLogs = logs.filter(l => l.memberId === m.id);
             const totalHours = memberLogs.reduce((sum, l) => sum + (Number(l.hoursWorked) || 0), 0);
             const approvedActivities = memberLogs.filter(l => l.status === 'Aprobado').length;
+            const adjustCount = memberLogs.filter(l => l.status === 'Ajuste Solicitado').length;
 
             const assignedProjects = projects.filter(p => 
               (p.activities || []).some(a => (a.assignedTo || []).includes(m.id))
@@ -68,6 +69,16 @@ window.GeoComponents.renderTeamView = function(container) {
                     <p class="font-black text-emerald-700 text-sm mt-0.5">${approvedActivities}</p>
                   </div>
                 </div>
+
+                ${adjustCount > 0 ? `
+                  <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold flex items-center justify-between">
+                    <span class="flex items-center space-x-1.5">
+                      <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-600"></i>
+                      <span>Ajustes solicitados:</span>
+                    </span>
+                    <span class="px-2 py-0.5 rounded-full bg-amber-200 text-amber-950 font-bold font-mono text-[11px]">${adjustCount}</span>
+                  </div>
+                ` : ''}
 
                 <div class="space-y-1.5 pt-1">
                   <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proyectos Asignados (${assignedProjects.length}):</span>

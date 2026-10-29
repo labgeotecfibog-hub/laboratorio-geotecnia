@@ -24,6 +24,7 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
   const activeProjects = projects.filter(p => p.status !== 'Finalizado').length;
   const pendingLogs = logs.filter(l => l.status === 'Pendiente');
   const approvedLogs = logs.filter(l => l.status === 'Aprobado');
+  const adjustmentLogs = logs.filter(l => l.status === 'Ajuste Solicitado');
 
   const totalHours = logs.reduce((sum, l) => sum + (Number(l.hoursWorked) || 0), 0);
 
@@ -86,6 +87,97 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
         <!-- Decorative Background Glow -->
         <div class="absolute -right-12 -bottom-12 w-72 h-72 bg-unal-400/20 rounded-full blur-3xl pointer-events-none"></div>
       </div>
+
+      <!-- Alerta Destacada: Ajustes Técnicos Solicitados para Estudiantes / Auxiliares -->
+      ${adjustmentLogs.length > 0 ? `
+        <div class="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 shadow-md space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200 pb-3">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-sm shrink-0 animate-bounce">
+                <i data-lucide="alert-circle" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-200 text-amber-900 border border-amber-300">Acción Requerida</span>
+                  <span class="text-xs font-bold text-amber-800">Revisión Técnica de Laboratorio</span>
+                </div>
+                <h3 class="text-base sm:text-lg font-extrabold text-amber-950 font-heading">
+                  ${adjustmentLogs.length} avance${adjustmentLogs.length > 1 ? 's' : ''} requiere${adjustmentLogs.length > 1 ? 'n' : ''} corrección o ajuste técnico
+                </h3>
+                <p class="text-xs text-amber-900/80">
+                  La Dirección o Coordinación revisó estos entregables y solicitó precisiones antes de validar el porcentaje de avance en el proyecto.
+                </p>
+              </div>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-200/80 text-amber-900 border border-amber-300 self-start sm:self-auto shrink-0">
+              ${adjustmentLogs.length} entregable${adjustmentLogs.length > 1 ? 's' : ''} por subsanar
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${adjustmentLogs.map(adj => {
+              const proj = projects.find(p => p.id === adj.projectId) || {};
+              const act = (proj.activities || []).find(a => a.id === adj.activityId) || {};
+              return `
+                <div class="bg-white rounded-2xl p-4 border border-amber-300/80 shadow-xs flex flex-col justify-between space-y-3">
+                  <div class="space-y-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <div class="flex items-center space-x-1.5 flex-wrap">
+                          <span class="font-mono text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">${proj.code || 'PRJ'}</span>
+                          <span class="text-xs font-bold text-slate-800 truncate">${proj.name || 'Proyecto'}</span>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                        Ajuste Solicitado
+                      </span>
+                    </div>
+
+                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs">
+                      <p class="text-slate-800 font-semibold">
+                        <span class="text-slate-500 font-normal">Actividad WBS:</span> ${act.name || 'Actividad Geotécnica'}
+                      </p>
+                      <div class="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
+                        <span>Reportado por: <strong>${adj.memberName}</strong></span>
+                        <span>•</span>
+                        <span>Fecha: ${window.GeoUtils.formatDateCO(adj.date)}</span>
+                      </div>
+                    </div>
+
+                    <!-- Observaciones de Revisión del Revisor -->
+                    <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1">
+                      <div class="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                        <span class="flex items-center space-x-1">
+                          <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-600"></i>
+                          <span>Observación de ${adj.reviewedBy || 'Coordinación'}:</span>
+                        </span>
+                        <span class="text-[10px] text-amber-700">${window.GeoUtils.formatDateCO(adj.reviewDate)}</span>
+                      </div>
+                      <p class="italic text-amber-900 leading-relaxed font-medium">
+                        "${adj.reviewComments || 'Se requieren ajustes técnicos en los entregables o lecturas de laboratorio.'}"
+                      </p>
+                    </div>
+
+                    ${adj.notes ? `
+                      <p class="text-[11px] text-slate-500 line-clamp-1 italic bg-slate-50 px-2.5 py-1 rounded-lg">
+                        Avance original: "${adj.notes}"
+                      </p>
+                    ` : ''}
+                  </div>
+
+                  <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span class="text-[11px] text-slate-400 font-mono">${adj.id}</span>
+                    <button class="btn-subsanar-ajuste px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5" data-proj="${adj.projectId}" data-act="${adj.activityId}" data-member="${adj.memberId}">
+                      <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                      <span>Subsanar y Reenviar Avance</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Alerta Destacada: Indicador de Tareas Atrasadas -->
       ${overdueTasks.length > 0 ? `
@@ -273,16 +365,23 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
               const proj = projects.find(p => p.id === l.projectId) || {};
               const act = (proj.activities || []).find(a => a.id === l.activityId) || {};
               const isPending = l.status === 'Pendiente';
+              const isAdjust = l.status === 'Ajuste Solicitado';
+
+              let statusBadge = isPending 
+                ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                : isAdjust 
+                  ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold' 
+                  : 'bg-unal-100 text-unal-800 border border-unal-200';
 
               return `
                 <div class="py-3.5 first:pt-0 last:pb-0 space-y-2">
-                  <div class="flex items-start justify-between">
-                    <div>
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
                       <span class="font-semibold text-slate-900 text-xs">${l.memberName}</span>
                       <p class="text-[11px] text-slate-500 truncate max-w-[180px]">[${proj.code || 'PRJ'}] ${act.name || 'Actividad'}</p>
                     </div>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isPending ? 'bg-amber-100 text-amber-800' : 'bg-unal-100 text-unal-800'}">
-                      ${l.status}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge} shrink-0">
+                      ${isAdjust ? '⚠️ Ajuste Solicitado' : l.status}
                     </span>
                   </div>
 
@@ -290,9 +389,24 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
                     "${l.notes}"
                   </p>
 
+                  ${isAdjust && l.reviewComments ? `
+                    <div class="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-950 font-medium space-y-0.5">
+                      <div class="font-bold flex items-center space-x-1 text-amber-900">
+                        <i data-lucide="message-square" class="w-3 h-3 text-amber-600"></i>
+                        <span>Observación (${l.reviewedBy || 'Coordinación'}):</span>
+                      </div>
+                      <p class="italic text-amber-900">"${l.reviewComments}"</p>
+                    </div>
+                  ` : ''}
+
                   <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
                     <span>${window.GeoUtils.formatDateCO(l.date)} • <strong>${l.hoursWorked} hrs</strong></span>
-                    ${(l.attachments && l.attachments.length > 0) ? `
+                    ${isAdjust ? `
+                      <button class="btn-subsanar-ajuste text-[11px] font-bold text-amber-700 hover:text-amber-900 underline flex items-center space-x-1" data-proj="${l.projectId}" data-act="${l.activityId}" data-member="${l.memberId}">
+                        <i data-lucide="edit-3" class="w-3 h-3"></i>
+                        <span>Subsanar</span>
+                      </button>
+                    ` : (l.attachments && l.attachments.length > 0) ? `
                       <span class="text-unal-700 font-medium flex items-center space-x-1">
                         <i data-lucide="paperclip" class="w-3 h-3"></i>
                         <span>${l.attachments.length} anexo(s)</span>
@@ -333,6 +447,18 @@ window.GeoComponents.renderDashboardView = function(container, onNavigate, onOpe
         onNavigate('approvals');
       }
     }
+  });
+
+  // Listeners para botones de subsanación directa de ajustes solicitados
+  container.querySelectorAll('.btn-subsanar-ajuste').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const projId = btn.getAttribute('data-proj');
+      const actId = btn.getAttribute('data-act');
+      const memberId = btn.getAttribute('data-member');
+      if (onOpenQuickLog) {
+        onOpenQuickLog(projId, actId, memberId);
+      }
+    });
   });
 
   if (window.lucide) window.lucide.createIcons();

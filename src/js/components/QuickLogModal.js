@@ -5,7 +5,7 @@
 
 window.GeoComponents = window.GeoComponents || {};
 
-window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, initialProjectId = null) {
+window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, initialProjectId = null, initialActivityId = null, initialMemberId = null) {
   const modalContainer = document.getElementById('quick-log-modal-container');
   if (!modalContainer) return;
 
@@ -216,9 +216,21 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, 
     drivePathText.textContent = window.GeoDrive.generateDrivePath(selectedProj, '[Nombre_Archivo]');
   });
 
+  const memberSelect = modalContainer.querySelector('#log-member-id');
+  if (initialMemberId && memberSelect) {
+    memberSelect.value = initialMemberId;
+  }
+
   if (initialProjectId && projects.some(p => p.id === initialProjectId)) {
     projectSelect.value = initialProjectId;
     projectSelect.dispatchEvent(new Event('change'));
+
+    if (initialActivityId) {
+      setTimeout(() => {
+        activitySelect.value = initialActivityId;
+        activitySelect.dispatchEvent(new Event('change'));
+      }, 30);
+    }
   }
 
   activitySelect.addEventListener('change', () => {
