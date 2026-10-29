@@ -241,7 +241,7 @@ window.GeoDrive = {
       const getRes = await fetch(getUrl);
       const getData = await getRes.json();
       if (getData && getData.status === 'success' && Array.isArray(getData.logs)) {
-        return { success: true, logs: getData.logs };
+        return { success: true, logs: getData.logs, deletedLogIds: getData.deletedLogIds || [] };
       }
     } catch (e) {
       // Continuar con POST como fallback
@@ -262,11 +262,60 @@ window.GeoDrive = {
 
       const result = await response.json();
       if (result && result.status === 'success' && Array.isArray(result.logs)) {
-        return { success: true, logs: result.logs };
+        return { success: true, logs: result.logs, deletedLogIds: result.deletedLogIds || [] };
       }
-      return { success: false, message: result ? result.message : 'Error al obtener avances de Drive', logs: [] };
+      return { success: false, message: result ? result.message : 'Error al obtener avances de Drive', logs: [], deletedLogIds: [] };
     } catch (err) {
-      return { success: false, message: err.message, logs: [] };
+      return { success: false, message: err.message, logs: [], deletedLogIds: [] };
+    }
+  },
+
+  /**
+   * Elimina y purga un registro de avance en Google Drive institucional
+   */
+  async deleteLogFromCloud(logId) {
+    const config = window.GeoStorage.getDriveConfig();
+    const hasWebhook = config.gasWebhookUrl && 
+                       config.gasWebhookUrl.trim() !== '' && 
+                       !config.gasWebhookUrl.includes('SampleGeoScriptId');
+
+    if (!hasWebhook || !logId) {
+      return { success: false, message: 'Webhook no configurado o ID no válido' };
+    }
+
+    // 1. Intentar con GET rápido
+    try {
+      const sep = config.gasWebhookUrl.includes('?') ? '&' : '?';
+      const rootParam = config.rootFolderId ? `&rootFolderId=${encodeURIComponent(config.rootFolderId)}` : '';
+      const getUrl = `${config.gasWebhookUrl.trim()}${sep}action=deleteLog&logId=${encodeURIComponent(logId)}${rootParam}&_t=${Date.now()}`;
+      const res = await fetch(getUrl);
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        return { success: true, ...data };
+      }
+    } catch (e) {
+      // Fallback a POST
+    }
+
+    // 2. Fallback a POST
+    try {
+      const payload = {
+        action: 'deleteLog',
+        rootFolderId: config.rootFolderId || '',
+        logId: logId
+      };
+
+      const response = await fetch(config.gasWebhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (err) {
+      console.warn('Error al eliminar avance en Drive:', err);
+      return { success: false, message: err.message };
     }
   },
 

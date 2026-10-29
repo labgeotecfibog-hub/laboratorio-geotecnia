@@ -28,9 +28,9 @@ class StorageService {
       DRIVE_CONFIG: {}
     };
 
-    const CURRENT_VERSION = '2026.10.27_clean_practices_and_routines_v13';
+    const CURRENT_VERSION = '2026.10.29_cloud_sync_and_tombstones_v14';
     const storedVersion = localStorage.getItem('lab_geo_data_version');
-    const FAKE_LOG_IDS = new Set(['LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
+    const FAKE_LOG_IDS = new Set(['LOG-2026-TEST-001', 'LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
     const FAKE_TASK_IDS = new Set(['REC-001', 'REC-002', 'REC-003', 'REC-004', 'REC-005', 'REC-006', 'REC-007']);
     const FAKE_PRACTICE_IDS = new Set(['PRAC-2026-001', 'PRAC-2026-002', 'PRAC-2026-003', 'PRAC-2026-004']);
 
@@ -456,9 +456,43 @@ class StorageService {
     this.saveMembers(members);
   }
 
+  getDeletedLogIds() {
+    try {
+      const data = localStorage.getItem('lab_geo_deleted_log_ids');
+      const set = data ? new Set(JSON.parse(data)) : new Set();
+      set.add('LOG-2026-TEST-001'); // Siempre purgar el avance de prueba de sincronización
+      return set;
+    } catch {
+      return new Set(['LOG-2026-TEST-001']);
+    }
+  }
+
+  saveDeletedLogIds(set) {
+    try {
+      const arr = Array.from(set || []);
+      localStorage.setItem('lab_geo_deleted_log_ids', JSON.stringify(arr));
+    } catch (e) {}
+  }
+
   deleteLog(logId) {
+    if (!logId) return;
+    const deletedSet = this.getDeletedLogIds();
+    deletedSet.add(logId);
+    this.saveDeletedLogIds(deletedSet);
+
     let logs = this.getLogs().filter(l => l.id !== logId);
     this.saveLogs(logs);
+
+    // Notificar y eliminar inmediatamente en Google Drive
+    if (window.GeoDrive && typeof window.GeoDrive.deleteLogFromCloud === 'function') {
+      window.GeoDrive.deleteLogFromCloud(logId).then(res => {
+        if (res && res.success) {
+          console.log(`✓ Avance ${logId} purgado permanentemente de Google Drive.`);
+        }
+      }).catch(err => {
+        console.warn('Eliminación diferida en Drive:', err);
+      });
+    }
   }
 
   // --- Registros de Avances (Logs) ---
@@ -466,8 +500,9 @@ class StorageService {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.LOGS);
       const parsed = data ? JSON.parse(data) : (window.GeoData ? window.GeoData.INITIAL_LOGS : []);
-      const FAKE_LOG_IDS = new Set(['LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
-      return Array.isArray(parsed) ? parsed.filter(l => !FAKE_LOG_IDS.has(l.id)) : [];
+      const FAKE_LOG_IDS = new Set(['LOG-2026-TEST-001', 'LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
+      const deletedIds = this.getDeletedLogIds();
+      return Array.isArray(parsed) ? parsed.filter(l => l && l.id && !FAKE_LOG_IDS.has(l.id) && !deletedIds.has(l.id)) : [];
     } catch {
       return window.GeoData ? window.GeoData.INITIAL_LOGS : [];
     }
@@ -575,21 +610,42 @@ class StorageService {
         return { success: false, message: res ? res.message : 'Error al sincronizar con Drive.' };
       }
 
-      const cloudLogs = res.logs;
-      const localLogs = this.getLogs();
+      const cloudLogs = res.logs || [];
+      const cloudDeletedIds = res.deletedLogIds || [];
+      const localDeletedSet = this.getDeletedLogIds();
+
+      // Fusionar IDs eliminados de la nube con la lista local
+      let deletedSetModified = false;
+      cloudDeletedIds.forEach(id => {
+        if (!localDeletedSet.has(id)) {
+          localDeletedSet.add(id);
+          deletedSetModified = true;
+        }
+      });
+      if (deletedSetModified) {
+        this.saveDeletedLogIds(localDeletedSet);
+      }
+
+      const FAKE_LOG_IDS = new Set(['LOG-2026-TEST-001', 'LOG-2026-002', 'LOG-2026-003', 'LOG-2026-004', 'LOG-2026-005']);
+
+      const localLogs = this.getLogs().filter(l => l && l.id && !localDeletedSet.has(l.id) && !FAKE_LOG_IDS.has(l.id));
 
       const logMap = new Map();
-      // 1. Cargar locales
+      // 1. Cargar locales limpios
       localLogs.forEach(l => {
-        if (l && l.id) logMap.set(l.id, l);
+        if (l && l.id && !localDeletedSet.has(l.id) && !FAKE_LOG_IDS.has(l.id)) {
+          logMap.set(l.id, l);
+        }
       });
 
       let newCount = 0;
       let updatedCount = 0;
 
-      // 2. Fusionar con registros de la nube
+      // 2. Fusionar con registros de la nube (ignorando eliminados y de prueba)
       cloudLogs.forEach(cLog => {
         if (!cLog || !cLog.id) return;
+        if (localDeletedSet.has(cLog.id) || FAKE_LOG_IDS.has(cLog.id)) return;
+
         if (!logMap.has(cLog.id)) {
           logMap.set(cLog.id, cLog);
           newCount++;
@@ -603,9 +659,11 @@ class StorageService {
         }
       });
 
-      // 3. AUTO-RECUPERACIÓN: Si en este navegador hay avances que no existen en la nube, subirlos automáticamente
+      // 3. AUTO-RECUPERACIÓN SEGURA:
+      // Si en este navegador hay avances legítimos que no existen en la nube, subirlos
+      // NUNCA subir registros eliminados ni de prueba
       const cloudIds = new Set(cloudLogs.map(c => c && c.id));
-      const unpushedLogs = localLogs.filter(l => l && l.id && !cloudIds.has(l.id));
+      const unpushedLogs = localLogs.filter(l => l && l.id && !cloudIds.has(l.id) && !localDeletedSet.has(l.id) && !FAKE_LOG_IDS.has(l.id));
       if (unpushedLogs.length > 0) {
         for (const unpushed of unpushedLogs) {
           window.GeoDrive.submitLogToCloud(unpushed).catch(err => {
@@ -614,7 +672,7 @@ class StorageService {
         }
       }
 
-      if (newCount > 0 || updatedCount > 0) {
+      if (newCount > 0 || updatedCount > 0 || localLogs.length !== logMap.size) {
         const mergedLogs = Array.from(logMap.values()).sort((a, b) => {
           const da = new Date(a.date || 0).getTime();
           const db = new Date(b.date || 0).getTime();

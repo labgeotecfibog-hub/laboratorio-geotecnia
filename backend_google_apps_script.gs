@@ -87,6 +87,7 @@ function doPost(e) {
     }
 
     // --- 3. SUBIR Y SINCRONIZAR UN AVANCE (LOG) DIRECTAMENTE EN DRIVE ---
+    // --- 3. SUBIR Y SINCRONIZAR UN AVANCE (LOG) DIRECTAMENTE EN DRIVE ---
     if (data.action === "submitLog") {
       var rootFolder = getRootFolder(data.rootFolderId);
       var dbFile = getOrCreateDbFile(rootFolder);
@@ -97,6 +98,14 @@ function doPost(e) {
       var newLog = data.log;
       if (!newLog || !newLog.id) {
         return createJsonResponse({ status: "error", message: "Faltan datos válidos del avance (log)." });
+      }
+
+      // Si estaba en la lista de eliminados, removerlo al reactivarse o crearse explícitamente
+      if (dbData.deletedLogIds && Array.isArray(dbData.deletedLogIds)) {
+        var delIdx = dbData.deletedLogIds.indexOf(newLog.id);
+        if (delIdx >= 0) {
+          dbData.deletedLogIds.splice(delIdx, 1);
+        }
       }
 
       var existingIndex = -1;
@@ -124,17 +133,49 @@ function doPost(e) {
       });
     }
 
+    // --- 3B. ELIMINAR Y PURGAR UN AVANCE (LOG) DE DRIVE ---
+    if (data.action === "deleteLog") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getOrCreateDbFile(rootFolder);
+      var dbData = parseDbFile(dbFile);
+
+      if (!dbData.deletedLogIds) dbData.deletedLogIds = [];
+      var targetLogId = data.logId;
+
+      if (targetLogId) {
+        if (dbData.deletedLogIds.indexOf(targetLogId) === -1) {
+          dbData.deletedLogIds.push(targetLogId);
+        }
+        if (dbData.logs && Array.isArray(dbData.logs)) {
+          dbData.logs = dbData.logs.filter(function(l) {
+            return l && l.id !== targetLogId;
+          });
+        }
+        dbData.syncDate = new Date().toISOString();
+        dbFile.setContent(JSON.stringify(dbData, null, 2));
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Avance eliminado de Google Drive con éxito.",
+        logId: targetLogId,
+        totalLogs: (dbData.logs || []).length,
+        deletedLogIds: dbData.deletedLogIds
+      });
+    }
+
     // --- 4. OBTENER REGISTROS DE AVANCES DESDE DRIVE ---
     if (data.action === "getLogs") {
       var rootFolder = getRootFolder(data.rootFolderId);
       var dbFile = getDbFile(rootFolder);
       if (!dbFile) {
-        return createJsonResponse({ status: "success", logs: [] });
+        return createJsonResponse({ status: "success", logs: [], deletedLogIds: [] });
       }
       var dbData = parseDbFile(dbFile);
       return createJsonResponse({
         status: "success",
         logs: dbData.logs || [],
+        deletedLogIds: dbData.deletedLogIds || [],
         total: (dbData.logs || []).length,
         syncDate: dbData.syncDate || new Date().toISOString()
       });
@@ -190,16 +231,62 @@ function doPost(e) {
       });
     }
 
-    // --- 6. GUARDAR COPIA COMPLETA DE LA BASE DE DATOS EN DRIVE ---
+    // --- 6. GUARDAR COPIA COMPLETA DE LA BASE DE DATOS EN DRIVE (FUSIÓN SEGURA SIN SOBRESCRIBIR NOVEDADES) ---
     if (data.action === "saveDatabase") {
       var rootFolder = getRootFolder(data.rootFolderId);
-      var dbFile = getOrCreateDbFile(rootFolder, data.databaseJson);
-      dbFile.setContent(data.databaseJson);
+      var dbFile = getOrCreateDbFile(rootFolder);
+      var currentDb = parseDbFile(dbFile);
+      var incomingDb = {};
+      try {
+        incomingDb = typeof data.databaseJson === "string" ? JSON.parse(data.databaseJson) : (data.databaseJson || {});
+      } catch (e) {
+        incomingDb = {};
+      }
+
+      // 1. Fusionar listas de IDs eliminados
+      var deletedIdsMap = {};
+      (currentDb.deletedLogIds || []).forEach(function(id) { deletedIdsMap[id] = true; });
+      (incomingDb.deletedLogIds || []).forEach(function(id) { deletedIdsMap[id] = true; });
+      var mergedDeletedIds = Object.keys(deletedIdsMap);
+
+      // 2. Fusionar logs evitando sobreescribir registros creados por otros integrantes
+      var logsMap = {};
+      (currentDb.logs || []).forEach(function(l) {
+        if (l && l.id && !deletedIdsMap[l.id]) {
+          logsMap[l.id] = l;
+        }
+      });
+      (incomingDb.logs || []).forEach(function(l) {
+        if (l && l.id && !deletedIdsMap[l.id]) {
+          if (!logsMap[l.id]) {
+            logsMap[l.id] = l;
+          } else {
+            var existing = logsMap[l.id];
+            if (l.reviewDate || l.status !== "Pendiente") {
+              logsMap[l.id] = Object.assign({}, existing, l);
+            }
+          }
+        }
+      });
+
+      var mergedLogsList = [];
+      for (var k in logsMap) {
+        mergedLogsList.push(logsMap[k]);
+      }
+
+      var finalDb = Object.assign({}, currentDb, incomingDb, {
+        logs: mergedLogsList,
+        deletedLogIds: mergedDeletedIds,
+        syncDate: new Date().toISOString()
+      });
+
+      dbFile.setContent(JSON.stringify(finalDb, null, 2));
 
       return createJsonResponse({
         status: "success",
-        message: "Base de datos sincronizada en Google Drive",
-        fileUrl: dbFile.getUrl()
+        message: "Base de datos sincronizada y protegida en Google Drive",
+        fileUrl: dbFile.getUrl(),
+        totalLogs: mergedLogsList.length
       });
     }
 
@@ -266,17 +353,48 @@ function doGet(e) {
       var rootFolder = getRootFolder(e.parameter.rootFolderId);
       var dbFile = getDbFile(rootFolder);
       if (!dbFile) {
-        return createJsonResponse({ status: "success", logs: [] });
+        return createJsonResponse({ status: "success", logs: [], deletedLogIds: [] });
       }
       var dbData = parseDbFile(dbFile);
       return createJsonResponse({
         status: "success",
         logs: dbData.logs || [],
+        deletedLogIds: dbData.deletedLogIds || [],
         total: (dbData.logs || []).length,
         syncDate: dbData.syncDate || new Date().toISOString()
       });
     } catch (err) {
-      return createJsonResponse({ status: "error", message: err.toString(), logs: [] });
+      return createJsonResponse({ status: "error", message: err.toString(), logs: [], deletedLogIds: [] });
+    }
+  }
+
+  if (action === "deleteLog") {
+    try {
+      var rootFolder = getRootFolder(e.parameter.rootFolderId);
+      var dbFile = getOrCreateDbFile(rootFolder);
+      var dbData = parseDbFile(dbFile);
+      var logId = e.parameter.logId;
+
+      if (!dbData.deletedLogIds) dbData.deletedLogIds = [];
+      if (logId) {
+        if (dbData.deletedLogIds.indexOf(logId) === -1) {
+          dbData.deletedLogIds.push(logId);
+        }
+        if (dbData.logs && Array.isArray(dbData.logs)) {
+          dbData.logs = dbData.logs.filter(function(l) { return l && l.id !== logId; });
+        }
+        dbData.syncDate = new Date().toISOString();
+        dbFile.setContent(JSON.stringify(dbData, null, 2));
+      }
+      return createJsonResponse({
+        status: "success",
+        message: "Avance eliminado de Drive",
+        logId: logId,
+        totalLogs: (dbData.logs || []).length,
+        deletedLogIds: dbData.deletedLogIds
+      });
+    } catch (err) {
+      return createJsonResponse({ status: "error", message: err.toString() });
     }
   }
 

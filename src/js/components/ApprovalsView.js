@@ -343,7 +343,7 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
     container.querySelectorAll('[data-delete-log]').forEach(btn => {
       btn.addEventListener('click', () => {
         const logId = btn.getAttribute('data-delete-log');
-        if (confirm('¿Estás seguro de que deseas eliminar este registro de avance reportado?')) {
+        if (confirm('¿Estás seguro de que deseas eliminar este registro de avance? Se eliminará de la plataforma y de Google Drive permanentemente.')) {
           window.GeoStorage.deleteLog(logId);
           render();
           if (onLogReviewed) onLogReviewed();
@@ -352,6 +352,15 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
     });
 
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  // Reactividad en tiempo real: Si se reciben novedades desde la nube, refrescar la lista
+  if (window.GeoStorage && typeof window.GeoStorage.subscribe === 'function') {
+    window.GeoStorage.subscribe(() => {
+      if (document.body.contains(container) && !isSyncing) {
+        render();
+      }
+    });
   }
 
   render();
