@@ -353,7 +353,10 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, 
       fileIndex++;
     }
 
-    window.GeoStorage.addLog({
+    submitBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Guardando avance en Google Drive...</span>`;
+    if (window.lucide) window.lucide.createIcons();
+
+    const createdLog = window.GeoStorage.addLog({
       projectId,
       activityId,
       memberId,
@@ -363,6 +366,14 @@ window.GeoComponents.renderQuickLogModal = function(isOpen, onClose, onSuccess, 
       notes,
       attachments
     });
+
+    if (window.GeoDrive && typeof window.GeoDrive.submitLogToCloud === 'function') {
+      try {
+        await window.GeoDrive.submitLogToCloud(createdLog);
+      } catch (cloudErr) {
+        console.warn('Sincronización en la nube procesada en cola:', cloudErr);
+      }
+    }
 
     if (typeof confetti === 'function') {
       confetti({

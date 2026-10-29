@@ -118,7 +118,12 @@ window.GeoComponents.renderDriveSettingsModal = function(isOpen, onClose) {
             <div class="flex flex-wrap items-center gap-2.5">
               <button type="button" id="btn-sync-cloud-db" class="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all">
                 <i data-lucide="cloud-upload" class="w-4 h-4"></i>
-                <span>Sincronizar a Google Drive Ahora</span>
+                <span>Subir Copia a Google Drive</span>
+              </button>
+
+              <button type="button" id="btn-pull-cloud-logs" class="px-3.5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-all">
+                <i data-lucide="cloud-download" class="w-4 h-4 text-emerald-300"></i>
+                <span>Descargar Avances desde Drive</span>
               </button>
 
               <button id="btn-export-backup" class="px-3.5 py-2 rounded-xl bg-unal-800 hover:bg-unal-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm">
@@ -254,6 +259,27 @@ window.GeoComponents.renderDriveSettingsModal = function(isOpen, onClose) {
       alert('No se pudo sincronizar con Drive: ' + (res.message || 'Verifica la URL del Webhook.'));
     }
   });
+
+  // Descargar Avances desde Drive
+  const pullBtn = modalContainer.querySelector('#btn-pull-cloud-logs');
+  if (pullBtn) {
+    pullBtn.addEventListener('click', async () => {
+      pullBtn.disabled = true;
+      pullBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Descargando...</span>`;
+      if (window.lucide) window.lucide.createIcons();
+
+      const res = await window.GeoStorage.syncLogsFromCloud();
+      pullBtn.disabled = false;
+      pullBtn.innerHTML = `<i data-lucide="cloud-download" class="w-4 h-4 text-emerald-300"></i><span>Descargar Avances desde Drive</span>`;
+      if (window.lucide) window.lucide.createIcons();
+
+      if (res && res.success) {
+        alert(`¡Avances descargados de Drive con éxito!\n• Nuevos avances: ${res.newCount}\n• Actualizados: ${res.updatedCount}\n• Total en sistema: ${res.total}`);
+      } else {
+        alert('No se pudieron descargar los avances: ' + (res.message || 'Verifica la URL del Webhook.'));
+      }
+    });
+  }
 
   modalContainer.querySelector('#btn-save-drive-settings').addEventListener('click', () => {
     const updated = {

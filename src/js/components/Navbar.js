@@ -136,6 +136,12 @@ window.GeoComponents.renderNavbar = function(activeTab, onTabChange, onOpenQuick
               </button>
             `}
 
+            <!-- Indicador Drive Auto-Sync -->
+            <button id="btn-navbar-sync" type="button" class="hidden md:inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-unal-900/80 hover:bg-unal-800 border border-unal-400/40 text-[11px] text-slate-200 transition-all shrink-0 cursor-pointer" title="Sincronización automática con Google Drive activa cada 30s. Pulsa para forzar actualización inmediata.">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="font-medium text-[11px] text-unal-200 whitespace-nowrap">Drive Auto-Sync</span>
+            </button>
+
             <!-- Botón Público Kiosco: Registrar Avance (Abierto a todos los auxiliares) -->
             <button id="btn-open-quick-log" class="px-3.5 py-2 rounded-xl bg-unal-400 hover:bg-unal-300 text-unal-900 font-bold text-xs sm:text-sm shadow-md shadow-unal-400/30 hover:shadow-lg transition-all flex items-center space-x-1.5 transform active:scale-95 shrink-0 whitespace-nowrap">
               <i data-lucide="plus-circle" class="w-4 h-4 shrink-0"></i>
@@ -272,6 +278,19 @@ window.GeoComponents.renderNavbar = function(activeTab, onTabChange, onOpenQuick
   const quickLogBtn = navContainer.querySelector('#btn-open-quick-log');
   if (quickLogBtn) {
     quickLogBtn.addEventListener('click', onOpenQuickLog);
+  }
+
+  const navbarSyncBtn = navContainer.querySelector('#btn-navbar-sync');
+  if (navbarSyncBtn) {
+    navbarSyncBtn.addEventListener('click', async () => {
+      navbarSyncBtn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 text-emerald-300 animate-spin"></i><span class="text-[11px] text-emerald-200 font-medium whitespace-nowrap">Sincronizando...</span>`;
+      if (window.lucide) window.lucide.createIcons();
+      if (window.GeoStorage && typeof window.GeoStorage.syncLogsFromCloud === 'function') {
+        await window.GeoStorage.syncLogsFromCloud();
+      }
+      navbarSyncBtn.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span class="font-medium text-[11px] text-unal-200 whitespace-nowrap">Drive Auto-Sync</span>`;
+      if (window.lucide) window.lucide.createIcons();
+    });
   }
 
   const driveBtn = navContainer.querySelector('#btn-drive-settings');

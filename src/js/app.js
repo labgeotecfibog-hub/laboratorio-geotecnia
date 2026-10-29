@@ -49,6 +49,11 @@ class GeoPlatformApp {
     this.activeTab = tabName;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     this.render();
+
+    // Sincronización silenciosa automática en segundo plano al cambiar de pestaña
+    if (window.GeoStorage && typeof window.GeoStorage.syncLogsFromCloud === 'function') {
+      window.GeoStorage.syncLogsFromCloud({ silent: true }).catch(() => {});
+    }
   }
 
   openQuickLog(initialProjectId = null) {

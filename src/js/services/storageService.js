@@ -146,6 +146,61 @@ class StorageService {
 
     // Limpieza global de integrantes sin nombre completo en cualquier sesión persistida
     this.cleanIncompleteMembers();
+
+    // Iniciar motor de auto-sincronización y monitoreo periódico en segundo plano con Google Drive
+    this.startAutoSync(30);
+  }
+
+  // --- Motor de Sincronización Automática con Google Drive ---
+  startAutoSync(intervalSeconds = 30) {
+    if (this._autoSyncTimer) return;
+
+    // 1. Sincronización inicial rápida a los 2 segundos
+    setTimeout(() => {
+      this.syncLogsFromCloud({ silent: true }).catch(() => {});
+    }, 2000);
+
+    // 2. Intervalo periódico en segundo plano (cada 30s)
+    this._autoSyncTimer = setInterval(() => {
+      this.syncLogsFromCloud({ silent: true }).catch(() => {});
+    }, intervalSeconds * 1000);
+
+    // 3. Sincronización reactiva inmediata al volver a la pestaña o ventana del navegador
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => {
+        this.syncLogsFromCloud({ silent: true }).catch(() => {});
+      });
+
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            this.syncLogsFromCloud({ silent: true }).catch(() => {});
+          }
+        });
+      }
+    }
+  }
+
+  stopAutoSync() {
+    if (this._autoSyncTimer) {
+      clearInterval(this._autoSyncTimer);
+      this._autoSyncTimer = null;
+    }
+  }
+
+  scheduleAutoCloudBackup() {
+    if (this._cloudBackupTimer) clearTimeout(this._cloudBackupTimer);
+    this._cloudBackupTimer = setTimeout(() => {
+      if (window.GeoDrive && typeof window.GeoDrive.syncDatabaseToDrive === 'function') {
+        window.GeoDrive.syncDatabaseToDrive().then(res => {
+          if (res && res.status === 'success') {
+            console.log('✓ Base de datos sincronizada automáticamente en Google Drive.');
+          }
+        }).catch(err => {
+          console.warn('Auto-backup en Drive diferido:', err);
+        });
+      }
+    }, 3500);
   }
 
   isIncompleteMember(m) {
@@ -305,6 +360,7 @@ class StorageService {
   saveProjects(projects) {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
     this.notify();
+    this.scheduleAutoCloudBackup();
   }
 
   addProject(newProject) {
@@ -372,6 +428,7 @@ class StorageService {
   saveMembers(members) {
     localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
     this.notify();
+    this.scheduleAutoCloudBackup();
   }
 
   addMember(member) {
@@ -416,24 +473,42 @@ class StorageService {
     }
   }
 
-  saveLogs(logs) {
+  saveLogs(logs, options = {}) {
     localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
     this.notify();
+    if (!options || !options.skipCloudBackup) {
+      this.scheduleAutoCloudBackup();
+    }
   }
 
   addLog(logData) {
     const logs = this.getLogs();
+    const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const newLog = {
       ...logData,
-      id: `LOG-${new Date().getFullYear()}-${String(logs.length + 1).padStart(3, '0')}`,
+      id: logData.id || `LOG-${new Date().getFullYear()}-${randSuffix}-${String(logs.length + 1).padStart(3, '0')}`,
       date: logData.date || new Date().toISOString().split('T')[0],
-      status: 'Pendiente',
-      reviewedBy: null,
-      reviewDate: null,
-      reviewComments: ''
+      status: logData.status || 'Pendiente',
+      reviewedBy: logData.reviewedBy || null,
+      reviewDate: logData.reviewDate || null,
+      reviewComments: logData.reviewComments || ''
     };
-    logs.unshift(newLog);
+
+    const existingIdx = logs.findIndex(l => l.id === newLog.id);
+    if (existingIdx >= 0) {
+      logs[existingIdx] = newLog;
+    } else {
+      logs.unshift(newLog);
+    }
     this.saveLogs(logs);
+
+    // Sincronización inmediata a Google Drive en la nube
+    if (window.GeoDrive && typeof window.GeoDrive.submitLogToCloud === 'function') {
+      window.GeoDrive.submitLogToCloud(newLog).catch(err => {
+        console.warn('Sincronización diferida en la nube:', err);
+      });
+    }
+
     return newLog;
   }
 
@@ -471,7 +546,94 @@ class StorageService {
 
     logs[logIndex] = log;
     this.saveLogs(logs);
+
+    // Sincronizar actualización de revisión en Google Drive
+    if (window.GeoDrive && typeof window.GeoDrive.reviewLogOnCloud === 'function') {
+      window.GeoDrive.reviewLogOnCloud(logId, reviewerId, isApproved, comments).catch(err => {
+        console.warn('Error al sincronizar revisión en la nube:', err);
+      });
+    }
+
     return log;
+  }
+
+  /**
+   * Sincroniza y fusiona los registros de avances con la base de datos central en Google Drive
+   * Es completamente bidireccional: descarga novedades y sube avances locales pendientes
+   */
+  async syncLogsFromCloud(options = {}) {
+    if (this._isSyncingLogs) return { success: false, message: 'Ya en progreso' };
+    this._isSyncingLogs = true;
+
+    try {
+      if (!window.GeoDrive || typeof window.GeoDrive.fetchLogsFromCloud !== 'function') {
+        return { success: false, message: 'Servicio de Drive no disponible.' };
+      }
+
+      const res = await window.GeoDrive.fetchLogsFromCloud();
+      if (!res || !res.success || !Array.isArray(res.logs)) {
+        return { success: false, message: res ? res.message : 'Error al sincronizar con Drive.' };
+      }
+
+      const cloudLogs = res.logs;
+      const localLogs = this.getLogs();
+
+      const logMap = new Map();
+      // 1. Cargar locales
+      localLogs.forEach(l => {
+        if (l && l.id) logMap.set(l.id, l);
+      });
+
+      let newCount = 0;
+      let updatedCount = 0;
+
+      // 2. Fusionar con registros de la nube
+      cloudLogs.forEach(cLog => {
+        if (!cLog || !cLog.id) return;
+        if (!logMap.has(cLog.id)) {
+          logMap.set(cLog.id, cLog);
+          newCount++;
+        } else {
+          const existing = logMap.get(cLog.id);
+          // Si el estado en la nube cambió (e.g. validado o con comentarios)
+          if (cLog.status !== existing.status || (cLog.reviewDate && !existing.reviewDate) || (cLog.reviewComments && !existing.reviewComments)) {
+            logMap.set(cLog.id, { ...existing, ...cLog });
+            updatedCount++;
+          }
+        }
+      });
+
+      // 3. AUTO-RECUPERACIÓN: Si en este navegador hay avances que no existen en la nube, subirlos automáticamente
+      const cloudIds = new Set(cloudLogs.map(c => c && c.id));
+      const unpushedLogs = localLogs.filter(l => l && l.id && !cloudIds.has(l.id));
+      if (unpushedLogs.length > 0) {
+        for (const unpushed of unpushedLogs) {
+          window.GeoDrive.submitLogToCloud(unpushed).catch(err => {
+            console.warn('Subida diferida de avance local a Drive:', err);
+          });
+        }
+      }
+
+      if (newCount > 0 || updatedCount > 0) {
+        const mergedLogs = Array.from(logMap.values()).sort((a, b) => {
+          const da = new Date(a.date || 0).getTime();
+          const db = new Date(b.date || 0).getTime();
+          return db - da;
+        });
+        this.saveLogs(mergedLogs, { skipCloudBackup: true });
+      }
+
+      return {
+        success: true,
+        total: logMap.size,
+        newCount,
+        updatedCount
+      };
+    } catch (err) {
+      return { success: false, message: err.message };
+    } finally {
+      this._isSyncingLogs = false;
+    }
   }
 
   // --- Google Drive Config ---
@@ -520,6 +682,7 @@ class StorageService {
   saveRecurringTasks(tasks) {
     localStorage.setItem(STORAGE_KEYS.RECURRING_TASKS, JSON.stringify(tasks));
     this.notify();
+    this.scheduleAutoCloudBackup();
   }
 
   addRecurringTask(task) {
@@ -617,6 +780,7 @@ class StorageService {
   saveLabPractices(practices) {
     localStorage.setItem(STORAGE_KEYS.LAB_PRACTICES, JSON.stringify(practices));
     this.notify();
+    this.scheduleAutoCloudBackup();
   }
 
   addLabPractice(practice) {

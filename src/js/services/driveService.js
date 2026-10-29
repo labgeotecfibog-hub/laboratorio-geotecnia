@@ -187,6 +187,127 @@ window.GeoDrive = {
   },
 
   /**
+   * Sube y sincroniza un avance individual directamente en la nube de Google Drive
+   */
+  async submitLogToCloud(logData) {
+    const config = window.GeoStorage.getDriveConfig();
+    const hasWebhook = config.gasWebhookUrl && 
+                       config.gasWebhookUrl.trim() !== '' && 
+                       !config.gasWebhookUrl.includes('SampleGeoScriptId');
+
+    if (!hasWebhook) {
+      return { success: false, message: 'Webhook de Google Drive no configurado.' };
+    }
+
+    try {
+      const payload = {
+        action: 'submitLog',
+        rootFolderId: config.rootFolderId || '',
+        log: logData
+      };
+
+      const response = await fetch(config.gasWebhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (err) {
+      console.warn('Error al sincronizar avance en la nube:', err);
+      return { success: false, message: err.message };
+    }
+  },
+
+  /**
+   * Obtiene todos los avances registrados en la nube (Google Drive)
+   */
+  async fetchLogsFromCloud() {
+    const config = window.GeoStorage.getDriveConfig();
+    const hasWebhook = config.gasWebhookUrl && 
+                       config.gasWebhookUrl.trim() !== '' && 
+                       !config.gasWebhookUrl.includes('SampleGeoScriptId');
+
+    if (!hasWebhook) {
+      return { success: false, message: 'Webhook no configurado', logs: [] };
+    }
+
+    // 1. Intentar primero con GET (evita redirecciones complejas de POST y es ultra-rápido)
+    try {
+      const sep = config.gasWebhookUrl.includes('?') ? '&' : '?';
+      const rootParam = config.rootFolderId ? `&rootFolderId=${encodeURIComponent(config.rootFolderId)}` : '';
+      const getUrl = `${config.gasWebhookUrl.trim()}${sep}action=getLogs${rootParam}&_t=${Date.now()}`;
+      const getRes = await fetch(getUrl);
+      const getData = await getRes.json();
+      if (getData && getData.status === 'success' && Array.isArray(getData.logs)) {
+        return { success: true, logs: getData.logs };
+      }
+    } catch (e) {
+      // Continuar con POST como fallback
+    }
+
+    // 2. Fallback a POST
+    try {
+      const payload = {
+        action: 'getLogs',
+        rootFolderId: config.rootFolderId || ''
+      };
+
+      const response = await fetch(config.gasWebhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (result && result.status === 'success' && Array.isArray(result.logs)) {
+        return { success: true, logs: result.logs };
+      }
+      return { success: false, message: result ? result.message : 'Error al obtener avances de Drive', logs: [] };
+    } catch (err) {
+      return { success: false, message: err.message, logs: [] };
+    }
+  },
+
+  /**
+   * Actualiza el estado de aprobación de un avance en Google Drive
+   */
+  async reviewLogOnCloud(logId, reviewerName, isApproved, comments = '') {
+    const config = window.GeoStorage.getDriveConfig();
+    const hasWebhook = config.gasWebhookUrl && 
+                       config.gasWebhookUrl.trim() !== '' && 
+                       !config.gasWebhookUrl.includes('SampleGeoScriptId');
+
+    if (!hasWebhook) {
+      return { success: false, message: 'Webhook no configurado' };
+    }
+
+    try {
+      const payload = {
+        action: 'reviewLog',
+        rootFolderId: config.rootFolderId || '',
+        logId: logId,
+        reviewerName: reviewerName,
+        isApproved: isApproved,
+        comments: comments
+      };
+
+      const response = await fetch(config.gasWebhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (err) {
+      console.warn('Error al actualizar revisión en la nube:', err);
+      return { success: false, message: err.message };
+    }
+  },
+
+  /**
    * Envía un informe por correo electrónico a través del Webhook de Google Apps Script
    */
   async sendEmailReport(emailPayload) {
@@ -328,19 +449,115 @@ function doPost(e) {
       });
     }
 
-    // --- 3. GUARDAR COPIA DE LA BASE DE DATOS EN DRIVE ---
-    if (data.action === "saveDatabase") {
-      var rootFolder = getOrCreateFolder(DriveApp.getRootFolder(), "Laboratorio_Geotecnia");
-      var fileName = "Laboratorio_Geotecnia_DB.json";
-      var existingFiles = rootFolder.getFilesByName(fileName);
-      var dbFile;
+    // --- 3. SUBIR Y SINCRONIZAR UN AVANCE (LOG) DIRECTAMENTE EN DRIVE ---
+    if (data.action === "submitLog") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getOrCreateDbFile(rootFolder);
+      var dbData = parseDbFile(dbFile);
 
-      if (existingFiles.hasNext()) {
-        dbFile = existingFiles.next();
-        dbFile.setContent(data.databaseJson);
-      } else {
-        dbFile = rootFolder.createFile(fileName, data.databaseJson, MimeType.PLAIN_TEXT);
+      if (!dbData.logs) dbData.logs = [];
+
+      var newLog = data.log;
+      if (!newLog || !newLog.id) {
+        return createJsonResponse({ status: "error", message: "Faltan datos válidos del avance (log)." });
       }
+
+      var existingIndex = -1;
+      for (var i = 0; i < dbData.logs.length; i++) {
+        if (dbData.logs[i].id === newLog.id) {
+          existingIndex = i;
+          break;
+        }
+      }
+
+      if (existingIndex >= 0) {
+        dbData.logs[existingIndex] = newLog;
+      } else {
+        dbData.logs.unshift(newLog);
+      }
+
+      dbData.syncDate = new Date().toISOString();
+      dbFile.setContent(JSON.stringify(dbData, null, 2));
+
+      return createJsonResponse({
+        status: "success",
+        message: "Avance sincronizado con éxito en Google Drive.",
+        log: newLog,
+        totalLogs: dbData.logs.length
+      });
+    }
+
+    // --- 4. OBTENER REGISTROS DE AVANCES DESDE DRIVE ---
+    if (data.action === "getLogs") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getDbFile(rootFolder);
+      if (!dbFile) {
+        return createJsonResponse({ status: "success", logs: [] });
+      }
+      var dbData = parseDbFile(dbFile);
+      return createJsonResponse({
+        status: "success",
+        logs: dbData.logs || [],
+        total: (dbData.logs || []).length,
+        syncDate: dbData.syncDate || new Date().toISOString()
+      });
+    }
+
+    // --- 5. REVISAR Y ACTUALIZAR ESTADO DE UN AVANCE EN DRIVE ---
+    if (data.action === "reviewLog") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getOrCreateDbFile(rootFolder);
+      var dbData = parseDbFile(dbFile);
+
+      if (!dbData.logs) dbData.logs = [];
+
+      var targetLog = null;
+      for (var i = 0; i < dbData.logs.length; i++) {
+        if (dbData.logs[i].id === data.logId) {
+          dbData.logs[i].status = data.isApproved ? "Aprobado" : "Ajuste Solicitado";
+          dbData.logs[i].reviewedBy = data.reviewerName || "Revisor";
+          dbData.logs[i].reviewDate = new Date().toISOString().split("T")[0];
+          dbData.logs[i].reviewComments = data.comments || "";
+          targetLog = dbData.logs[i];
+          break;
+        }
+      }
+
+      // Si fue aprobado, actualizar el progreso de la actividad en projects si existe en la BD
+      if (data.isApproved && targetLog && dbData.projects) {
+        for (var p = 0; p < dbData.projects.length; p++) {
+          if (dbData.projects[p].id === targetLog.projectId && dbData.projects[p].activities) {
+            for (var a = 0; a < dbData.projects[p].activities.length; a++) {
+              if (dbData.projects[p].activities[a].id === targetLog.activityId) {
+                dbData.projects[p].activities[a].progress = Number(targetLog.progressReported) || 0;
+                if (dbData.projects[p].activities[a].progress >= 100) {
+                  dbData.projects[p].activities[a].status = "Completada";
+                } else if (dbData.projects[p].activities[a].progress > 0) {
+                  dbData.projects[p].activities[a].status = "En Ejecución";
+                }
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      dbData.syncDate = new Date().toISOString();
+      dbFile.setContent(JSON.stringify(dbData, null, 2));
+
+      return createJsonResponse({
+        status: "success",
+        message: "Revisión sincronizada en Google Drive",
+        log: targetLog
+      });
+    }
+
+    // --- 6. GUARDAR COPIA COMPLETA DE LA BASE DE DATOS EN DRIVE ---
+    if (data.action === "saveDatabase") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getOrCreateDbFile(rootFolder, data.databaseJson);
+      dbFile.setContent(data.databaseJson);
 
       return createJsonResponse({
         status: "success",
@@ -349,7 +566,21 @@ function doPost(e) {
       });
     }
 
-    // --- 4. ENVÍO DE CORREO ELECTRÓNICO INSTITUCIONAL ---
+    // --- 7. OBTENER BASE DE DATOS COMPLETA ---
+    if (data.action === "getDatabase") {
+      var rootFolder = getRootFolder(data.rootFolderId);
+      var dbFile = getDbFile(rootFolder);
+      if (!dbFile) {
+        return createJsonResponse({ status: "error", message: "No se encontró el archivo de base de datos." });
+      }
+      var dbData = parseDbFile(dbFile);
+      return createJsonResponse({
+        status: "success",
+        data: dbData
+      });
+    }
+
+    // --- 8. ENVÍO DE CORREO ELECTRÓNICO INSTITUCIONAL ---
     if (data.action === "sendEmail") {
       var toRecipient = data.to || DIRECTOR_EMAIL;
       var ccRecipients = data.cc !== undefined ? data.cc : COORDINADORES_EMAIL;
@@ -391,6 +622,41 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
+
+  if (action === "getLogs") {
+    try {
+      var rootFolder = getRootFolder(e.parameter.rootFolderId);
+      var dbFile = getDbFile(rootFolder);
+      if (!dbFile) {
+        return createJsonResponse({ status: "success", logs: [] });
+      }
+      var dbData = parseDbFile(dbFile);
+      return createJsonResponse({
+        status: "success",
+        logs: dbData.logs || [],
+        total: (dbData.logs || []).length,
+        syncDate: dbData.syncDate || new Date().toISOString()
+      });
+    } catch (err) {
+      return createJsonResponse({ status: "error", message: err.toString(), logs: [] });
+    }
+  }
+
+  if (action === "getDatabase") {
+    try {
+      var rootFolder = getRootFolder(e.parameter.rootFolderId);
+      var dbFile = getDbFile(rootFolder);
+      if (!dbFile) {
+        return createJsonResponse({ status: "error", message: "Archivo de base de datos no encontrado." });
+      }
+      var dbData = parseDbFile(dbFile);
+      return createJsonResponse({ status: "success", data: dbData });
+    } catch (err) {
+      return createJsonResponse({ status: "error", message: err.toString() });
+    }
+  }
+
   return createJsonResponse({
     status: "online",
     service: "Laboratorio de Geotecnia UNAL - Google Apps Script API",
@@ -702,6 +968,48 @@ function getOrCreateFolder(parent, folderName) {
     return folders.next();
   }
   return parent.createFolder(folderName);
+}
+
+function getRootFolder(rootFolderId) {
+  if (rootFolderId && rootFolderId.trim() !== "") {
+    try {
+      return DriveApp.getFolderById(rootFolderId.trim());
+    } catch (err) {}
+  }
+  return getOrCreateFolder(DriveApp.getRootFolder(), "Laboratorio_Geotecnia");
+}
+
+function getDbFile(rootFolder) {
+  var fileName = "Laboratorio_Geotecnia_DB.json";
+  var existingFiles = rootFolder.getFilesByName(fileName);
+  if (existingFiles.hasNext()) {
+    return existingFiles.next();
+  }
+  return null;
+}
+
+function getOrCreateDbFile(rootFolder, defaultContent) {
+  var file = getDbFile(rootFolder);
+  if (file) return file;
+  var content = defaultContent || JSON.stringify({
+    version: "2026.1",
+    syncDate: new Date().toISOString(),
+    projects: [],
+    members: [],
+    logs: [],
+    recurringTasks: [],
+    labPractices: []
+  }, null, 2);
+  return rootFolder.createFile("Laboratorio_Geotecnia_DB.json", content, MimeType.PLAIN_TEXT);
+}
+
+function parseDbFile(dbFile) {
+  try {
+    var raw = dbFile.getBlob().getDataAsString();
+    return JSON.parse(raw) || { logs: [] };
+  } catch (e) {
+    return { logs: [] };
+  }
 }
 
 function createJsonResponse(data) {

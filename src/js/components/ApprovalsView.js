@@ -72,6 +72,34 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
 
   // --- 2. VISTA COMPLETA PARA REVISORES AUTORIZADOS ---
   let activeFilter = 'Pendiente';
+  let isSyncing = false;
+  let initialSyncDone = false;
+
+  async function triggerCloudSync(interactive = false) {
+    if (isSyncing) return;
+    isSyncing = true;
+    const syncBtn = container.querySelector('#btn-sync-approvals');
+    if (syncBtn) {
+      syncBtn.disabled = true;
+      syncBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 text-emerald-600 animate-spin"></i><span>Sincronizando...</span>`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+    try {
+      const res = await window.GeoStorage.syncLogsFromCloud();
+      if (res && res.success) {
+        if (interactive) {
+          alert(`Sincronización con Google Drive completada:\n• Avances nuevos cargados: ${res.newCount}\n• Avances actualizados: ${res.updatedCount}\n• Total de avances: ${res.total}`);
+        }
+      } else if (interactive && res) {
+        alert('Aviso de sincronización: ' + (res.message || 'Verifica la conexión con Google Drive en la configuración.'));
+      }
+    } catch (e) {
+      console.warn('Error sincronizando con Drive:', e);
+    } finally {
+      isSyncing = false;
+      render();
+    }
+  }
 
   function render() {
     const logs = window.GeoStorage.getLogs();
@@ -106,13 +134,25 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
             <p class="text-xs sm:text-sm text-slate-500">Revisión técnica de actividades reportadas por los estudiantes y verificación de anexos en Google Drive</p>
           </div>
 
-          <div class="flex items-center space-x-2.5 bg-unal-50 p-2 rounded-2xl border border-unal-200 text-xs">
-            <div class="w-8 h-8 rounded-xl bg-unal-700 text-white flex items-center justify-center font-bold font-mono">
-              ${currentReviewer.username.substring(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <span class="text-[10px] text-slate-500 uppercase font-bold block leading-none">Revisor Activo:</span>
-              <span class="font-bold text-unal-950">${currentReviewer.name}</span>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <span class="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-300 text-xs font-semibold select-none" title="La plataforma se sincroniza automáticamente cada 30 segundos con Google Drive">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Auto-Sync Activo (30s)</span>
+            </span>
+
+            <button id="btn-sync-approvals" title="Consultar de inmediato avances registrados desde otros equipos en Google Drive" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-xs flex items-center space-x-1.5 transition-all shadow-sm">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-600"></i>
+              <span>Actualizar Ahora</span>
+            </button>
+
+            <div class="flex items-center space-x-2.5 bg-unal-50 p-2 rounded-2xl border border-unal-200 text-xs">
+              <div class="w-8 h-8 rounded-xl bg-unal-700 text-white flex items-center justify-center font-bold font-mono">
+                ${currentReviewer.username.substring(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-bold block leading-none">Revisor Activo:</span>
+                <span class="font-bold text-unal-950">${currentReviewer.name}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -134,10 +174,18 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
 
         <div class="space-y-4">
           ${filteredLogs.length === 0 ? `
-            <div class="glass-card p-12 text-center rounded-2xl border border-dashed border-slate-300">
-              <i data-lucide="check-check" class="w-12 h-12 text-unal-500 mx-auto mb-3"></i>
-              <p class="text-base font-semibold text-slate-800">No hay registros en esta categoría</p>
-              <p class="text-xs text-slate-400 mt-1">Todos los avances correspondientes han sido revisados y validados.</p>
+            <div class="glass-card p-10 text-center rounded-2xl border border-dashed border-slate-300 space-y-3">
+              <i data-lucide="check-check" class="w-12 h-12 text-unal-500 mx-auto"></i>
+              <div>
+                <p class="text-base font-semibold text-slate-800">No hay registros en esta categoría</p>
+                <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">Si algún auxiliar acaba de registrar un avance desde otro computador, pulsa el botón para traerlo desde la base de datos central en Google Drive.</p>
+              </div>
+              <div class="pt-2 flex items-center justify-center">
+                <button id="btn-empty-sync-drive" class="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center space-x-2 shadow-md shadow-emerald-700/20 transition-all">
+                  <i data-lucide="cloud-download" class="w-4 h-4"></i>
+                  <span>Traer Avances desde Google Drive</span>
+                </button>
+              </div>
             </div>
           ` : filteredLogs.map(log => {
             const project = projects.find(p => p.id === log.projectId) || {};
@@ -251,6 +299,16 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
       </div>
     `;
 
+    // Botones de Sincronización Nube
+    const syncBtn = container.querySelector('#btn-sync-approvals');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', () => triggerCloudSync(true));
+    }
+    const emptySyncBtn = container.querySelector('#btn-empty-sync-drive');
+    if (emptySyncBtn) {
+      emptySyncBtn.addEventListener('click', () => triggerCloudSync(true));
+    }
+
     container.querySelectorAll('.approval-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         activeFilter = btn.getAttribute('data-filter');
@@ -297,4 +355,12 @@ window.GeoComponents.renderApprovalsView = function(container, onLogReviewed, on
   }
 
   render();
+
+  // Sincronización automática silenciosa al abrir la bandeja por primera vez
+  if (!initialSyncDone) {
+    initialSyncDone = true;
+    setTimeout(() => {
+      triggerCloudSync(false);
+    }, 400);
+  }
 };
